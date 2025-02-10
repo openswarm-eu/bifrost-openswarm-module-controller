@@ -18,7 +18,7 @@ func main() {
 	cfg := ddaConnector.NewConfig()
 	cfg.Url = "tcp://localhost:1883"
 	cfg.Name = "charger"
-	cfg.Leader.Protocol = "raft"
+	cfg.Leader.Protocol = "dda"
 	cfg.Leader.Disabled = false
 	cfg.Leader.Bootstrap = *bootstrap
 

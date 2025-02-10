@@ -1,6 +1,7 @@
 package ddaConnector
 
 import (
+	"log"
 	"time"
 
 	"code.siemens.com/energy-community-controller/ddaConnector/leaderElection"
@@ -27,7 +28,11 @@ func NewConnector(cfg *Config) (*DdaClient, error) {
 			ddaConfig.Services.State.Protocol = cfg.Leader.Protocol
 			ddaConfig.Services.State.Disabled = false
 			ddaConfig.Services.State.Bootstrap = cfg.Leader.Bootstrap
-			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewRaft(), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
+			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewRaftConsistencyProvider(), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
+		} else if cfg.Leader.Protocol == "dda" {
+			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewDdaConsistencyProvider(ddaConfig.Identity.Id), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
+		} else {
+			log.Fatalln("unknown leader election protocol!")
 		}
 	}
 
@@ -60,6 +65,8 @@ func (c *DdaClient) LeaderCh() <-chan bool {
 func (c *DdaClient) Close() {
 	if c.leaderElection != nil {
 		c.leaderElection.Close()
+		// wait for short time to let all threads shutdown/send final messages
+		time.Sleep(time.Millisecond * 50)
 	}
 
 	c.ddaClient.Close()

@@ -115,11 +115,9 @@ func (f *fsm) applyEvent(event event) {
 	defer f.mu.Unlock()
 	f.mu.Lock()
 
-	//log.Printf("%d - %d", f.currentState, event)
 	if transition, ok := f.transitions[f.currentState][event]; ok {
 		f.currentState = transition()
 	}
-	//log.Printf("%d", f.currentState)
 }
 
 func (f *fsm) close() {
@@ -129,9 +127,7 @@ func (f *fsm) close() {
 
 func getRandomTimeout(heartbeatTimeoutBase time.Duration) time.Duration {
 	timeout := heartbeatTimeoutBase.Milliseconds() + int64(rand.Float64()*float64(heartbeatTimeoutBase.Milliseconds()))
-	tmp := time.Duration(timeout) * time.Millisecond
-	log.Println(tmp)
-	return tmp
+	return time.Duration(timeout) * time.Millisecond
 }
 
 type logic interface {

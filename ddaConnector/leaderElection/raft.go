@@ -7,29 +7,22 @@ import (
 	"github.com/coatyio/dda/services/state/api"
 )
 
-type raft struct {
+type raftConsistencyProvider struct {
 	ddaClient *dda.Dda
 }
 
-func NewRaft() *raft {
-	return &raft{}
+func NewRaftConsistencyProvider() *raftConsistencyProvider {
+	return &raftConsistencyProvider{}
 }
 
-func (r *raft) open(ddaClient *dda.Dda) error {
+func (r *raftConsistencyProvider) open(ddaClient *dda.Dda) {
 	r.ddaClient = ddaClient
-	return nil
 }
 
-func (r *raft) observeMembershipChange(ctx context.Context) (<-chan api.MembershipChange, error) {
-	return r.ddaClient.ObserveMembershipChange(ctx)
-}
-
-func (r *raft) observeStateChange(ctx context.Context) (<-chan api.Input, error) {
+func (r *raftConsistencyProvider) observeStateChange(ctx context.Context) (<-chan api.Input, error) {
 	return r.ddaClient.ObserveStateChange(ctx)
 }
 
-func (r *raft) proposeInput(ctx context.Context, in *api.Input) error {
+func (r *raftConsistencyProvider) proposeInput(ctx context.Context, in *api.Input) error {
 	return r.ddaClient.ProposeInput(ctx, in)
 }
-
-func (r *raft) close() {}

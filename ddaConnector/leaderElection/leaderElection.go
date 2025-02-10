@@ -12,11 +12,9 @@ import (
 const LEADER_KEY = "leader"
 
 type consistencyProvider interface {
-	open(ddaClient *dda.Dda) error
-	//observeMembershipChange(ctx context.Context) (<-chan api.MembershipChange, error)
+	open(ddaClient *dda.Dda)
 	observeStateChange(ctx context.Context) (<-chan api.Input, error)
 	proposeInput(ctx context.Context, in *api.Input) error
-	close()
 }
 
 type LeaderElection struct {
@@ -24,8 +22,7 @@ type LeaderElection struct {
 	consistencyProvider consistencyProvider
 
 	leaderChannel chan bool
-	//clusterMembers *clusterMembers
-	fsm *fsm
+	fsm           *fsm
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -47,14 +44,7 @@ func New(id string, consistencyProvider consistencyProvider, heartbeatPeriode in
 }
 
 func (le *LeaderElection) Open(ddaClient *dda.Dda) error {
-	if err := le.consistencyProvider.open(ddaClient); err != nil {
-		return nil
-	}
-
-	/*mc, err := le.consistencyProvider.observeMembershipChange(le.ctx)
-	if err != nil {
-		return err
-	}*/
+	le.consistencyProvider.open(ddaClient)
 
 	sc, err := le.consistencyProvider.observeStateChange(le.ctx)
 	if err != nil {
@@ -64,8 +54,6 @@ func (le *LeaderElection) Open(ddaClient *dda.Dda) error {
 	go func() {
 		for {
 			select {
-			/*case membershipChange := <-mc:
-			le.handleMembershipUpdate(membershipChange)*/
 			case stateChange := <-sc:
 				le.handleStateUpdate(stateChange)
 			case <-le.ctx.Done():
@@ -89,20 +77,6 @@ func (le *LeaderElection) Close() {
 	le.cancel()
 	close(le.leaderChannel)
 }
-
-/*func (le *LeaderElection) handleMembershipUpdate(change api.MembershipChange) {
-	log.Printf("%s: %t", change.Id, change.Joined)
-	if change.Joined {
-		le.clusterMembers.addMember(change.Id)
-	} else {
-		le.clusterMembers.removeMember(change.Id)
-	}
-
-	log.Printf("%v", le.clusterMembers.getMembers())
-	le.mu.Lock()
-	le.eligibleNodes = le.clusterMembers.getMembers()
-	le.mu.Unlock()
-}*/
 
 func (le *LeaderElection) handleStateUpdate(change api.Input) {
 	log.Printf("%d: %s-%s", change.Op, change.Key, change.Value)
