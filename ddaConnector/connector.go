@@ -3,6 +3,7 @@ package ddaConnector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"time"
 
@@ -39,15 +40,16 @@ func NewConnector(cfg *Config) (*DdaClient, error) {
 	ddaConfig.Apis.Grpc.Disabled = true
 	ddaConfig.Apis.GrpcWeb.Disabled = true
 	if cfg.Leader.Enabled {
-		if cfg.Leader.Protocol == "raft" {
+		switch cfg.Leader.Protocol {
+		case "raft":
 			ddaConfig.Services.State.Protocol = cfg.Leader.Protocol
 			ddaConfig.Services.State.Disabled = false
 			ddaConfig.Services.State.Bootstrap = cfg.Leader.Bootstrap
 			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewRaftConsistencyProvider(), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
-		} else if cfg.Leader.Protocol == "dda" {
+		case "dda":
 			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewDdaConsistencyProvider(ddaConfig.Identity.Id), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
-		} else {
-			log.Fatalln("unknown leader election protocol!")
+		default:
+			return nil, errors.New("unknown leader election protocol")
 		}
 	}
 

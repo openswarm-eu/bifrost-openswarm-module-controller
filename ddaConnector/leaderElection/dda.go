@@ -39,17 +39,13 @@ func (d *ddaConsistencyProvider) observeStateChange(ctx context.Context) (<-chan
 
 	go func() {
 		for {
-			select {
-			case event := <-evts:
+			for event := range evts {
 				var stateEventMsg stateEventMsg
 				if err := json.Unmarshal(event.Data, &stateEventMsg); err != nil {
 					log.Printf("Could not unmarshal incomming state event message, %s", err)
 					continue
 				}
 				d.observerStateChangeChannel <- api.Input{Key: stateEventMsg.Key, Value: stateEventMsg.Value, Op: stateEventMsg.Op}
-			case <-ctx.Done():
-				log.Printf("shutdown state change oberserver")
-				return
 			}
 		}
 	}()

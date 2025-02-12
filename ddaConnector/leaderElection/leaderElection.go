@@ -52,14 +52,8 @@ func (le *LeaderElection) Open(ddaClient *dda.Dda) error {
 	}
 
 	go func() {
-		for {
-			select {
-			case stateChange := <-sc:
-				le.handleStateUpdate(stateChange)
-			case <-le.ctx.Done():
-				log.Printf("shutdown leader election")
-				return
-			}
+		for stateChange := range sc {
+			le.handleStateUpdate(stateChange)
 		}
 	}()
 
