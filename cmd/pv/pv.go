@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	log.Println("starting charger")
+	log.Println("starting pv")
 
 	bootstrap := flag.Bool("b", false, "bootstrap raft")
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
@@ -22,7 +22,7 @@ func main() {
 
 	cfg := ddaConnector.NewConfig()
 	cfg.Url = "tcp://localhost:1883"
-	cfg.Name = "charger"
+	cfg.Name = "pv"
 	cfg.Id = uuid.NewString()
 	cfg.Leader.Protocol = "dda"
 	cfg.Leader.Enabled = *leadershipElectionEnabled
@@ -70,12 +70,7 @@ func main() {
 		log.Fatalln(err)
 	}*/
 
-	getChargerChannel, err := ddaClient.SubscribeGetChargers(ctx)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	chargingSetPointChannel, err := ddaClient.SubscribeChargingSetPoint(ctx)
+	getProductionChannel, err := ddaClient.SubscribeGetProduction(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -85,10 +80,8 @@ func main() {
 
 	for {
 		select {
-		case getChargerRequest := <-getChargerChannel:
-			getChargerRequest.Callback(ddaClient.CreateGetChargerResponse())
-		case chargingSetPoint := <-chargingSetPointChannel:
-			log.Printf("Got new charging set point: %d", chargingSetPoint.Value)
+		case getProductionRequest := <-getProductionChannel:
+			getProductionRequest.Callback(ddaClient.CreateGetProductionResponse(1000))
 		case <-sigChan:
 			return
 		}

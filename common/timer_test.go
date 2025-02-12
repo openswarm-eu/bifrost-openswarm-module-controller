@@ -1,4 +1,4 @@
-package leaderElection
+package common
 
 import (
 	"testing"
@@ -6,10 +6,10 @@ import (
 )
 
 func TestTimer(t *testing.T) {
-	subject := timer{}
+	subject := Timer{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
 	})
 	time.Sleep(time.Millisecond * 300)
@@ -21,14 +21,14 @@ func TestTimer(t *testing.T) {
 }
 
 func TestTimerStop(t *testing.T) {
-	subject := timer{}
+	subject := Timer{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
 	})
 	time.Sleep(time.Millisecond * 50)
-	subject.stop()
+	subject.Stop()
 	time.Sleep(time.Millisecond * 100)
 
 	if count != 0 {
@@ -37,33 +37,33 @@ func TestTimerStop(t *testing.T) {
 }
 
 func TestTimerStopAfterInvocation(t *testing.T) {
-	subject := timer{}
+	subject := Timer{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
 	})
 
 	time.Sleep(time.Millisecond * 150)
 	if count != 1 {
-		t.Errorf("Wrong number of invocations before stop: %v", count)
+		t.Errorf("Wrong number of invocations before Stop: %v", count)
 	}
 
-	subject.stop()
+	subject.Stop()
 	time.Sleep(time.Millisecond * 150)
 
 	if count != 1 {
-		t.Errorf("Wrong number of invocations after stop: %v", count)
+		t.Errorf("Wrong number of invocations after Stop: %v", count)
 	}
 }
 
 func TestTimerStopInsideCallback(t *testing.T) {
-	subject := timer{}
+	subject := Timer{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
-		subject.stop()
+		subject.Stop()
 	})
 
 	time.Sleep(time.Millisecond * 150)
@@ -74,35 +74,35 @@ func TestTimerStopInsideCallback(t *testing.T) {
 }
 
 func TestTimerStopAfterStop(t *testing.T) {
-	subject := timer{}
+	subject := Timer{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
 	})
 
 	time.Sleep(time.Millisecond * 50)
-	subject.stop()
-	subject.stop()
+	subject.Stop()
+	subject.Stop()
 	time.Sleep(time.Millisecond * 100)
 
 	if count != 0 {
-		t.Errorf("Wrong number of invocations after stop: %v", count)
+		t.Errorf("Wrong number of invocations after Stop: %v", count)
 	}
 }
 
 func TestTimerReset(t *testing.T) {
-	subject := timer{}
+	subject := Timer{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
 	})
 
 	time.Sleep(time.Millisecond * 50)
-	subject.reset(time.Millisecond * 100)
+	subject.Reset(time.Millisecond * 100)
 	time.Sleep(time.Millisecond * 70)
 	if count != 0 {
-		t.Errorf("Wrong number of invocations after restart: %v", count)
+		t.Errorf("Wrong number of invocations after reStart: %v", count)
 	}
 }

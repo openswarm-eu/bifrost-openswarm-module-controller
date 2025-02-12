@@ -1,13 +1,16 @@
 package ddaConnector
 
+import "github.com/google/uuid"
+
 type Config struct {
 	Url    string
 	Name   string
+	Id     string
 	Leader LeaderConfig
 }
 
 type LeaderConfig struct {
-	Disabled             bool
+	Enabled              bool
 	Protocol             string
 	Bootstrap            bool
 	HeartbeatPeriode     int
@@ -18,8 +21,9 @@ func NewConfig() *Config {
 	return &Config{
 		Url:  "",
 		Name: "DDA",
+		Id:   uuid.NewString(),
 		Leader: LeaderConfig{
-			Disabled:             true,
+			Enabled:              false,
 			Protocol:             "raft",
 			Bootstrap:            false,
 			HeartbeatPeriode:     1000,

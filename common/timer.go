@@ -1,17 +1,17 @@
-package leaderElection
+package common
 
 import (
 	"time"
 )
 
-type timer struct {
+type Timer struct {
 	timer *time.Timer
 
 	quit    chan bool
 	started bool
 }
 
-func (t *timer) start(duration time.Duration, callback func()) {
+func (t *Timer) Start(duration time.Duration, callback func()) {
 	t.started = true
 	t.quit = make(chan bool)
 
@@ -30,7 +30,7 @@ func (t *timer) start(duration time.Duration, callback func()) {
 	}()
 }
 
-func (t *timer) stop() {
+func (t *Timer) Stop() {
 	if t.started {
 		select {
 		case t.quit <- true:
@@ -41,6 +41,6 @@ func (t *timer) stop() {
 	t.started = false
 }
 
-func (t *timer) reset(duration time.Duration) {
+func (t *Timer) Reset(duration time.Duration) {
 	t.timer.Reset(duration)
 }

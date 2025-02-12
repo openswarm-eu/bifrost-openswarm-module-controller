@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"code.siemens.com/energy-community-controller/common"
 )
 
 type state int
@@ -30,8 +32,8 @@ type fsm struct {
 	currentState state
 	transitions  map[state]map[event]transition
 
-	heartbeatMonitor timer
-	heartbeatSender  ticker
+	heartbeatMonitor common.Timer
+	heartbeatSender  common.Ticker
 
 	timeout time.Duration
 
@@ -49,23 +51,23 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 	f.transitions[leader] = map[event]transition{
 		ownHeartbeatReceived: func() state {
 			log.Println("leader: ownHeartbeatReceived --> leader")
-			f.heartbeatMonitor.reset(timeoutBase)
+			f.heartbeatMonitor.Reset(timeoutBase)
 			return leader
 		},
 		differentHeartbeatReceived: func() state {
 			log.Println("leader: differentHeartbeatReceived --> follower")
-			f.heartbeatSender.stop()
+			f.heartbeatSender.Stop()
 			logic.leaderCh() <- false
 			f.timeout = getRandomTimeout(timeoutBase)
-			f.heartbeatMonitor.reset(f.timeout)
+			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
 		},
 		heartbeatTimeout: func() state {
 			log.Println("leader: heartbeatTimeout --> follower")
-			f.heartbeatSender.stop()
+			f.heartbeatSender.Stop()
 			logic.leaderCh() <- false
 			f.timeout = getRandomTimeout(timeoutBase)
-			f.heartbeatMonitor.reset(f.timeout)
+			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
 		},
 	}
@@ -74,14 +76,14 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 		ownHeartbeatReceived: func() state {
 			log.Println("candidate: ownHeartbeatReceived --> leader")
 			logic.leaderCh() <- true
-			f.heartbeatMonitor.reset(f.timeout)
+			f.heartbeatMonitor.Reset(f.timeout)
 			return leader
 		},
 		differentHeartbeatReceived: func() state {
 			log.Println("candidate: differentHeartbeatReceived --> follower")
-			f.heartbeatSender.stop()
+			f.heartbeatSender.Stop()
 			f.timeout = getRandomTimeout(timeoutBase)
-			f.heartbeatMonitor.reset(f.timeout)
+			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
 		},
 	}
@@ -89,17 +91,17 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 	f.transitions[follower] = map[event]transition{
 		ownHeartbeatReceived: func() state {
 			log.Println("follower: ownHeartbeatReceived --> follower")
-			f.heartbeatMonitor.reset(f.timeout)
+			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
 		},
 		differentHeartbeatReceived: func() state {
 			log.Println("follower: differentHeartbeatReceived --> follower")
-			f.heartbeatMonitor.reset(f.timeout)
+			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
 		},
 		heartbeatTimeout: func() state {
 			log.Println("follower: heartbeatTimeout --> candidate")
-			f.heartbeatSender.start(periode, logic.sendHeartbeat)
+			f.heartbeatSender.Start(periode, logic.sendHeartbeat)
 			return candidate
 		},
 	}
@@ -108,7 +110,7 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 }
 
 func (f *fsm) start() {
-	f.heartbeatMonitor.start(f.timeout, f.logic.heartbeatTimeout)
+	f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
 }
 
 func (f *fsm) applyEvent(event event) {
@@ -121,8 +123,8 @@ func (f *fsm) applyEvent(event event) {
 }
 
 func (f *fsm) close() {
-	f.heartbeatMonitor.stop()
-	f.heartbeatSender.stop()
+	f.heartbeatMonitor.Stop()
+	f.heartbeatSender.Stop()
 }
 
 func getRandomTimeout(heartbeatTimeoutBase time.Duration) time.Duration {

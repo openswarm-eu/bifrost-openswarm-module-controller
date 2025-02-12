@@ -1,13 +1,13 @@
-package leaderElection
+package common
 
 import "time"
 
-type ticker struct {
+type Ticker struct {
 	quit    chan bool
 	started bool
 }
 
-func (t *ticker) start(duration time.Duration, callback func()) {
+func (t *Ticker) Start(duration time.Duration, callback func()) {
 	t.started = true
 	t.quit = make(chan bool)
 
@@ -27,7 +27,7 @@ func (t *ticker) start(duration time.Duration, callback func()) {
 	}()
 }
 
-func (t *ticker) stop() {
+func (t *Ticker) Stop() {
 	if t.started {
 		select {
 		case t.quit <- true:

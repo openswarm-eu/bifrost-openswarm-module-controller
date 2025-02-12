@@ -1,4 +1,4 @@
-package leaderElection
+package common
 
 import (
 	"testing"
@@ -6,10 +6,10 @@ import (
 )
 
 func TestTicker(t *testing.T) {
-	subject := ticker{}
+	subject := Ticker{}
 	count := 0
 
-	subject.start(time.Millisecond*50, func() {
+	subject.Start(time.Millisecond*50, func() {
 		count++
 	})
 
@@ -28,14 +28,14 @@ func TestTicker(t *testing.T) {
 }
 
 func TestTickerStop(t *testing.T) {
-	subject := ticker{}
+	subject := Ticker{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
 	})
 	time.Sleep(time.Millisecond * 50)
-	subject.stop()
+	subject.Stop()
 	time.Sleep(time.Millisecond * 100)
 
 	if count != 1 {
@@ -44,12 +44,12 @@ func TestTickerStop(t *testing.T) {
 }
 
 func TestTickerStopInsideCallback(t *testing.T) {
-	subject := ticker{}
+	subject := Ticker{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
-		subject.stop()
+		subject.Stop()
 	})
 
 	time.Sleep(time.Millisecond * 150)
@@ -60,18 +60,18 @@ func TestTickerStopInsideCallback(t *testing.T) {
 }
 
 func TestTickerStopAfterStop(t *testing.T) {
-	subject := ticker{}
+	subject := Ticker{}
 	count := 0
 
-	subject.start(time.Millisecond*100, func() {
+	subject.Start(time.Millisecond*100, func() {
 		count++
 	})
 	time.Sleep(time.Millisecond * 50)
-	subject.stop()
-	subject.stop()
+	subject.Stop()
+	subject.Stop()
 	time.Sleep(time.Millisecond * 100)
 
 	if count != 1 {
-		t.Errorf("Wrong number of invocations after stop: %v", count)
+		t.Errorf("Wrong number of invocations after Stop: %v", count)
 	}
 }
