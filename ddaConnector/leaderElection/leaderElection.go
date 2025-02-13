@@ -96,14 +96,22 @@ func (le *LeaderElection) heartbeatTimeout() {
 }
 
 func (le *LeaderElection) sendHeartbeat() {
+	log.Println("sending heartbeat")
 	input := api.Input{
 		Op:    api.InputOpSet,
 		Key:   LEADER_KEY,
 		Value: []byte(le.id),
 	}
-	if err := le.consistencyProvider.proposeInput(le.ctx, &input); err != nil {
-		log.Printf("Could not send heartbeat: %s", err)
-	}
+
+	ctx, cancel := context.WithCancel(le.ctx)
+	go func() {
+		if err := le.consistencyProvider.proposeInput(ctx, &input); err != nil {
+			log.Printf("Could not send heartbeat: %s", err)
+		}
+	}()
+
+	<-time.After(1000 * time.Millisecond)
+	cancel()
 }
 
 func (le *LeaderElection) leaderCh() chan bool {

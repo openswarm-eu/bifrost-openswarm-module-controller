@@ -26,8 +26,8 @@ func NewConfig() *Config {
 			Enabled:              false,
 			Protocol:             "raft",
 			Bootstrap:            false,
-			HeartbeatPeriode:     1000,
-			HeartbeatTimeoutBase: 1200,
+			HeartbeatPeriode:     5000,
+			HeartbeatTimeoutBase: 5200,
 		},
 	}
 }
