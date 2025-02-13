@@ -72,16 +72,20 @@ func (c *Controller) logic() {
 	productions := make([]ddaConnector.Value, 0)
 	chargerIds := make([]ddaConnector.Message, 0)
 
-	// TODO: check timestamp in msg
+	startTime := time.Now().Add(-1 * time.Second)
 	go func() {
-		for pvReponse := range productionResponses {
-			productions = append(productions, pvReponse)
+		for pvResponse := range productionResponses {
+			if pvResponse.Timestamp.After(startTime) {
+				productions = append(productions, pvResponse)
+			}
 		}
 	}()
 
 	go func() {
 		for chargerId := range chargerResponses {
-			chargerIds = append(chargerIds, chargerId)
+			if chargerId.Timestamp.After(startTime) {
+				chargerIds = append(chargerIds, chargerId)
+			}
 		}
 	}()
 

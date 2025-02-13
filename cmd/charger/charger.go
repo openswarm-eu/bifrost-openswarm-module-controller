@@ -88,7 +88,11 @@ func main() {
 		case getChargerRequest := <-getChargerChannel:
 			getChargerRequest.Callback(ddaClient.CreateGetChargerResponse())
 		case chargingSetPoint := <-chargingSetPointChannel:
-			log.Printf("Got new charging set point: %d", chargingSetPoint.Value)
+			if chargingSetPoint.Timestamp.After(time.Now().Add(-500 * time.Millisecond)) {
+				log.Printf("Got new charging set point: %d", chargingSetPoint.Value)
+			} else {
+				log.Println("Got too old chargingPoint, ignoring it")
+			}
 		case <-sigChan:
 			return
 		}
