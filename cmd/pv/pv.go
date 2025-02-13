@@ -24,7 +24,7 @@ func main() {
 	cfg.Url = "tcp://localhost:1883"
 	cfg.Name = "pv"
 	cfg.Id = uuid.NewString()
-	cfg.Leader.Protocol = "dda"
+	cfg.Leader.Protocol = "raft"
 	cfg.Leader.Enabled = *leadershipElectionEnabled
 	cfg.Leader.Bootstrap = *bootstrap
 

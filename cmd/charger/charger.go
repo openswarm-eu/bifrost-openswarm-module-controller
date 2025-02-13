@@ -24,7 +24,7 @@ func main() {
 	cfg.Url = "tcp://localhost:1883"
 	cfg.Name = "charger"
 	cfg.Id = uuid.NewString()
-	cfg.Leader.Protocol = "dda"
+	cfg.Leader.Protocol = "raft"
 	cfg.Leader.Enabled = *leadershipElectionEnabled
 	cfg.Leader.Bootstrap = *bootstrap
 
@@ -88,10 +88,11 @@ func main() {
 		case getChargerRequest := <-getChargerChannel:
 			getChargerRequest.Callback(ddaClient.CreateGetChargerResponse())
 		case chargingSetPoint := <-chargingSetPointChannel:
-			if chargingSetPoint.Timestamp.After(time.Now().Add(-500 * time.Millisecond)) {
+			if chargingSetPoint.Timestamp.After(time.Now().Add(-1000 * time.Millisecond)) {
 				log.Printf("Got new charging set point: %d", chargingSetPoint.Value)
 			} else {
 				log.Println("Got too old chargingPoint, ignoring it")
+				log.Printf("now: %s, got: %s", time.Now(), chargingSetPoint.Timestamp)
 			}
 		case <-sigChan:
 			return

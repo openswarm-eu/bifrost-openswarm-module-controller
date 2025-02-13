@@ -5,7 +5,7 @@ go 1.21.1
 toolchain go1.22.11
 
 require (
-	github.com/coatyio/dda v0.42.0
+	github.com/coatyio/dda v0.43.0
 	github.com/eclipse/paho.golang v0.12.0
 	github.com/google/uuid v1.6.0
 )
@@ -29,9 +29,10 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/go-hclog v1.6.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
-	github.com/hashicorp/go-msgpack/v2 v2.1.1 // indirect
+	github.com/hashicorp/go-metrics v0.5.4 // indirect
+	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
-	github.com/hashicorp/raft v1.6.0 // indirect
+	github.com/hashicorp/raft v1.7.2 // indirect
 	github.com/improbable-eng/grpc-web v0.15.0 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
