@@ -81,6 +81,12 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	chargingSetPointMonitorDuration := cfg.Controller.Periode + cfg.Charger.MaximumAcceptableSetPointOffset
+	var chargingSetPointMonitor common.Timer
+	chargingSetPointMonitor.Start(chargingSetPointMonitorDuration, func() {
+		log.Println("charging set point timeout")
+	})
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 
@@ -89,10 +95,11 @@ func main() {
 		case getChargerRequest := <-getChargerChannel:
 			getChargerRequest.Callback(ddaClient.CreateGetChargerResponse())
 		case chargingSetPoint := <-chargingSetPointChannel:
-			if chargingSetPoint.Timestamp.After(time.Now().Add(cfg.Charger.MaximumAcceptableSetPointOffset)) {
+			if chargingSetPoint.Timestamp.After(time.Now().Add(-cfg.Charger.MaximumAcceptableSetPointOffset)) {
 				log.Printf("Got new charging set point: %d", chargingSetPoint.Value)
+				chargingSetPointMonitor.Reset(chargingSetPointMonitorDuration)
 			} else {
-				log.Println("Got too old chargingPoint, ignoring it")
+				log.Println("Got too old charging set point, ignoring it")
 				log.Printf("now: %s, got: %s", time.Now(), chargingSetPoint.Timestamp)
 			}
 		case <-sigChan:

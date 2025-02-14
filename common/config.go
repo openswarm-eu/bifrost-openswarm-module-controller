@@ -30,7 +30,6 @@ type ControllerConfig struct {
 }
 
 type ChargerConfig struct {
-	SetPointTimeout                 time.Duration
 	MaximumAcceptableSetPointOffset time.Duration
 }
 
@@ -43,7 +42,7 @@ func NewConfig() *Config {
 			Enabled:              false,
 			Protocol:             "raft",
 			Bootstrap:            false,
-			HeartbeatPeriode:     500 * time.Millisecond,
+			HeartbeatPeriode:     5000 * time.Millisecond,
 			HeartbeatTimeoutBase: 5200 * time.Millisecond,
 		},
 		Controller: ControllerConfig{
