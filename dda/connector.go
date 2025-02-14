@@ -40,6 +40,7 @@ func NewConnector(cfg *common.Config) (*Connector, error) {
 	ddaConfig.Identity.Id = cfg.Id
 	ddaConfig.Apis.Grpc.Disabled = true
 	ddaConfig.Apis.GrpcWeb.Disabled = true
+	ddaConfig.Cluster = cfg.EnergyCommunity
 	if cfg.Leader.Enabled {
 		switch cfg.Leader.Protocol {
 		case "raft":
@@ -48,7 +49,7 @@ func NewConnector(cfg *common.Config) (*Connector, error) {
 			ddaConfig.Services.State.Bootstrap = cfg.Leader.Bootstrap
 			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewRaftConsistencyProvider(), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
 		case "dda":
-			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewDdaConsistencyProvider(ddaConfig.Identity.Id), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
+			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewDdaConsistencyProvider(), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
 		default:
 			return nil, errors.New("unknown leader election protocol")
 		}

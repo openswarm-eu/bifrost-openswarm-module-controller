@@ -12,16 +12,14 @@ import (
 )
 
 type ddaConsistencyProvider struct {
-	id        string
 	ddaClient *dda.Dda
 
 	observerMembershipChannel  chan api.MembershipChange
 	observerStateChangeChannel chan api.Input
 }
 
-func NewDdaConsistencyProvider(id string) *ddaConsistencyProvider {
+func NewDdaConsistencyProvider() *ddaConsistencyProvider {
 	return &ddaConsistencyProvider{
-		id:                         id,
 		observerMembershipChannel:  make(chan api.MembershipChange, 256),
 		observerStateChangeChannel: make(chan api.Input, 256),
 	}

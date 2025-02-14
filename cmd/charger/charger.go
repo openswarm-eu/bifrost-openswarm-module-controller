@@ -18,15 +18,21 @@ import (
 func main() {
 	log.Println("starting charger")
 
+	var id string
+	var url string
+	var energyCommunity string
 	bootstrap := flag.Bool("b", false, "bootstrap raft")
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
+	flag.StringVar(&id, "id", uuid.NewString(), "id")
+	flag.StringVar(&url, "url", "tcp://localhost:1883", "mqtt url")
+	flag.StringVar(&energyCommunity, "energyCommunity", "energyCommunity", "energy community id")
 	flag.Parse()
 
 	cfg := common.NewConfig()
-	cfg.Url = "tcp://localhost:1883"
 	cfg.Name = "charger"
-	cfg.Id = uuid.NewString()
-	cfg.Leader.Protocol = "raft"
+	cfg.Url = url
+	cfg.Id = id
+	cfg.EnergyCommunity = energyCommunity
 	cfg.Leader.Enabled = *leadershipElectionEnabled
 	cfg.Leader.Bootstrap = *bootstrap
 
