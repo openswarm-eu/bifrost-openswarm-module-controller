@@ -4,12 +4,12 @@ import (
 	"log"
 	"time"
 
-	"code.siemens.com/energy-community-controller/ddaConnector"
+	"code.siemens.com/energy-community-controller/dda"
 )
 
 type equalAllocationAlgorithm struct{}
 
-func (equalAllocationAlgorithm) calculateChargerPower(pvProductionValues []ddaConnector.Value, chargers []ddaConnector.Message) []ddaConnector.Value {
+func (equalAllocationAlgorithm) calculateChargerPower(pvProductionValues []dda.Value, chargers []dda.Message) []dda.Value {
 	log.Println(pvProductionValues)
 	log.Println(chargers)
 
@@ -26,10 +26,10 @@ func (equalAllocationAlgorithm) calculateChargerPower(pvProductionValues []ddaCo
 		chargingSetPoint = 0
 	}
 
-	result := make([]ddaConnector.Value, len(chargers))
+	result := make([]dda.Value, len(chargers))
 
 	for i, charger := range chargers {
-		result[i] = ddaConnector.Value{Message: ddaConnector.Message{Id: charger.Id, Timestamp: time.Now()}, Value: chargingSetPoint}
+		result[i] = dda.Value{Message: dda.Message{Id: charger.Id, Timestamp: time.Now()}, Value: chargingSetPoint}
 	}
 
 	return result

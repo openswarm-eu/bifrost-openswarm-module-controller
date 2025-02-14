@@ -7,17 +7,17 @@ import (
 	"time"
 
 	"code.siemens.com/energy-community-controller/common"
-	"code.siemens.com/energy-community-controller/ddaConnector"
+	"code.siemens.com/energy-community-controller/dda"
 )
 
 type Controller struct {
 	config              common.ControllerConfig
-	connector           *ddaConnector.DdaClient
+	connector           *dda.Connector
 	allocationAlgorithm allocationLogic
 	ctx                 context.Context
 }
 
-func NewController(config common.ControllerConfig, connector *ddaConnector.DdaClient) (*Controller, error) {
+func NewController(config common.ControllerConfig, connector *dda.Connector) (*Controller, error) {
 	c := Controller{config: config, connector: connector}
 	switch config.Algorithm {
 	case "equal":
@@ -70,9 +70,10 @@ func (c *Controller) logic() {
 		return
 	}
 
-	productions := make([]ddaConnector.Value, 0)
-	chargerIds := make([]ddaConnector.Message, 0)
+	productions := make([]dda.Value, 0)
+	chargerIds := make([]dda.Message, 0)
 
+	// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
 	startTime := time.Now().Add(-1 * time.Second)
 	go func() {
 		for pvResponse := range productionResponses {
@@ -98,5 +99,5 @@ func (c *Controller) logic() {
 }
 
 type allocationLogic interface {
-	calculateChargerPower(pvProductionValues []ddaConnector.Value, chargers []ddaConnector.Message) []ddaConnector.Value
+	calculateChargerPower(pvProductionValues []dda.Value, chargers []dda.Message) []dda.Value
 }

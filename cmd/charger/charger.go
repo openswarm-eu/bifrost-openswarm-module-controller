@@ -10,7 +10,7 @@ import (
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/controller"
-	"code.siemens.com/energy-community-controller/ddaConnector"
+	"code.siemens.com/energy-community-controller/dda"
 	"code.siemens.com/energy-community-controller/mqtt"
 	"github.com/google/uuid"
 )
@@ -30,7 +30,7 @@ func main() {
 	cfg.Leader.Enabled = *leadershipElectionEnabled
 	cfg.Leader.Bootstrap = *bootstrap
 
-	var ddaClient *ddaConnector.DdaClient
+	var ddaConnector *dda.Connector
 	var mqttConnector *mqtt.Connector
 	var err error
 
@@ -40,8 +40,8 @@ func main() {
 		log.Println("shutting down")
 		cancel()
 
-		if ddaClient != nil {
-			ddaClient.Close()
+		if ddaConnector != nil {
+			ddaConnector.Close()
 		}
 
 		if mqttConnector != nil {
@@ -49,16 +49,16 @@ func main() {
 		}
 	}()
 
-	if ddaClient, err = ddaConnector.NewConnector(cfg); err != nil {
+	if ddaConnector, err = dda.NewConnector(cfg); err != nil {
 		log.Fatalln(err)
 	}
 
-	if err = ddaClient.Open(); err != nil {
+	if err = ddaConnector.Open(); err != nil {
 		log.Fatalln(err)
 	}
 
 	if cfg.Leader.Enabled {
-		if controller, err := controller.NewController(cfg.Controller, ddaClient); err != nil {
+		if controller, err := controller.NewController(cfg.Controller, ddaConnector); err != nil {
 			log.Fatalln(err)
 		} else {
 			controller.Start(ctx)
@@ -73,12 +73,12 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	getChargerChannel, err := ddaClient.SubscribeGetChargers(ctx)
+	getChargerChannel, err := ddaConnector.SubscribeGetChargers(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	chargingSetPointChannel, err := ddaClient.SubscribeChargingSetPoint(ctx)
+	chargingSetPointChannel, err := ddaConnector.SubscribeChargingSetPoint(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -95,7 +95,7 @@ func main() {
 	for {
 		select {
 		case getChargerRequest := <-getChargerChannel:
-			getChargerRequest.Callback(ddaClient.CreateGetChargerResponse())
+			getChargerRequest.Callback(ddaConnector.CreateGetChargerResponse())
 		case chargingSetPoint := <-chargingSetPointChannel:
 			if chargingSetPoint.Timestamp.After(time.Now().Add(-cfg.Charger.MaximumAcceptableSetPointOffset)) {
 				log.Printf("Got new charging set point: %d", chargingSetPoint.Value)

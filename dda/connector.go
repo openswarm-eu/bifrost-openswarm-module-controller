@@ -1,4 +1,4 @@
-package ddaConnector
+package dda
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"code.siemens.com/energy-community-controller/common"
-	"code.siemens.com/energy-community-controller/ddaConnector/leaderElection"
+	"code.siemens.com/energy-community-controller/dda/leaderElection"
 	"github.com/coatyio/dda/config"
 	"github.com/coatyio/dda/dda"
 	"github.com/coatyio/dda/services/com/api"
@@ -25,14 +25,14 @@ type Value struct {
 	Value int
 }
 
-type DdaClient struct {
+type Connector struct {
 	cfg            *common.Config
 	ddaClient      *dda.Dda
 	leaderElection *leaderElection.LeaderElection
 }
 
-func NewConnector(cfg *common.Config) (*DdaClient, error) {
-	c := DdaClient{cfg: cfg}
+func NewConnector(cfg *common.Config) (*Connector, error) {
+	c := Connector{cfg: cfg}
 
 	ddaConfig := config.New()
 	ddaConfig.Services.Com.Url = cfg.Url
@@ -62,7 +62,7 @@ func NewConnector(cfg *common.Config) (*DdaClient, error) {
 	return &c, nil
 }
 
-func (c *DdaClient) Open() error {
+func (c *Connector) Open() error {
 	if err := c.ddaClient.Open(5 * time.Second); err != nil {
 		return err
 	}
@@ -76,11 +76,11 @@ func (c *DdaClient) Open() error {
 	return nil
 }
 
-func (c *DdaClient) LeaderCh() <-chan bool {
+func (c *Connector) LeaderCh() <-chan bool {
 	return c.leaderElection.LeaderCh()
 }
 
-func (c *DdaClient) Close() {
+func (c *Connector) Close() {
 	log.Println("DdaClient: close")
 	if c.leaderElection != nil {
 		c.leaderElection.Close()
@@ -91,7 +91,7 @@ func (c *DdaClient) Close() {
 	c.ddaClient.Close()
 }
 
-func (c *DdaClient) GetChargers(ctx context.Context) (<-chan Message, error) {
+func (c *Connector) GetChargers(ctx context.Context) (<-chan Message, error) {
 	action := api.Action{Type: CHARGER_ACTION, Id: uuid.NewString(), Source: "controller"}
 	replies, err := c.ddaClient.PublishAction(ctx, action)
 
@@ -115,11 +115,11 @@ func (c *DdaClient) GetChargers(ctx context.Context) (<-chan Message, error) {
 	return result, nil
 }
 
-func (c *DdaClient) SubscribeGetChargers(ctx context.Context) (<-chan api.ActionWithCallback, error) {
+func (c *Connector) SubscribeGetChargers(ctx context.Context) (<-chan api.ActionWithCallback, error) {
 	return c.ddaClient.SubscribeAction(ctx, api.SubscriptionFilter{Type: CHARGER_ACTION})
 }
 
-func (c *DdaClient) GetProduction(ctx context.Context) (<-chan Value, error) {
+func (c *Connector) GetProduction(ctx context.Context) (<-chan Value, error) {
 	action := api.Action{Type: PRODUCTION_ACTION, Id: uuid.NewString(), Source: "controller"}
 	replies, err := c.ddaClient.PublishAction(ctx, action)
 
@@ -143,11 +143,11 @@ func (c *DdaClient) GetProduction(ctx context.Context) (<-chan Value, error) {
 	return result, nil
 }
 
-func (c *DdaClient) SubscribeGetProduction(ctx context.Context) (<-chan api.ActionWithCallback, error) {
+func (c *Connector) SubscribeGetProduction(ctx context.Context) (<-chan api.ActionWithCallback, error) {
 	return c.ddaClient.SubscribeAction(ctx, api.SubscriptionFilter{Type: PRODUCTION_ACTION})
 }
 
-func (c *DdaClient) SendChargingSetPoints(setPoints []Value) {
+func (c *Connector) SendChargingSetPoints(setPoints []Value) {
 	for _, setPoint := range setPoints {
 		msg := ddaValue{ddaMessage: ddaMessage{Id: setPoint.Id, Timestamp: setPoint.Timestamp.Unix()}, Value: setPoint.Value}
 		data, _ := json.Marshal(msg)
@@ -157,7 +157,7 @@ func (c *DdaClient) SendChargingSetPoints(setPoints []Value) {
 	}
 }
 
-func (c *DdaClient) SubscribeChargingSetPoint(ctx context.Context) (<-chan Value, error) {
+func (c *Connector) SubscribeChargingSetPoint(ctx context.Context) (<-chan Value, error) {
 	events, err := c.ddaClient.SubscribeEvent(ctx, api.SubscriptionFilter{Type: CHARGING_SET_POINT})
 
 	if err != nil {
@@ -182,13 +182,13 @@ func (c *DdaClient) SubscribeChargingSetPoint(ctx context.Context) (<-chan Value
 	return result, nil
 }
 
-func (c *DdaClient) CreateGetChargerResponse() api.ActionResult {
+func (c *Connector) CreateGetChargerResponse() api.ActionResult {
 	msg := ddaMessage{Id: c.cfg.Id, Timestamp: time.Now().Unix()}
 	data, _ := json.Marshal(msg)
 	return api.ActionResult{Data: data}
 }
 
-func (c *DdaClient) CreateGetProductionResponse(production int) api.ActionResult {
+func (c *Connector) CreateGetProductionResponse(production int) api.ActionResult {
 	msg := ddaValue{ddaMessage: ddaMessage{Id: c.cfg.Id, Timestamp: time.Now().Unix()}, Value: production}
 	data, _ := json.Marshal(msg)
 	return api.ActionResult{Data: data}

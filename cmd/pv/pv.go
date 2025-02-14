@@ -9,7 +9,7 @@ import (
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/controller"
-	"code.siemens.com/energy-community-controller/ddaConnector"
+	"code.siemens.com/energy-community-controller/dda"
 	"code.siemens.com/energy-community-controller/mqtt"
 	"github.com/google/uuid"
 )
@@ -29,7 +29,7 @@ func main() {
 	cfg.Leader.Enabled = *leadershipElectionEnabled
 	cfg.Leader.Bootstrap = *bootstrap
 
-	var ddaClient *ddaConnector.DdaClient
+	var ddaConnector *dda.Connector
 	var mqttConnector *mqtt.Connector
 	var pvProduction int
 	var err error
@@ -40,8 +40,8 @@ func main() {
 		log.Println("shutting down")
 		cancel()
 
-		if ddaClient != nil {
-			ddaClient.Close()
+		if ddaConnector != nil {
+			ddaConnector.Close()
 		}
 
 		if mqttConnector != nil {
@@ -49,16 +49,16 @@ func main() {
 		}
 	}()
 
-	if ddaClient, err = ddaConnector.NewConnector(cfg); err != nil {
+	if ddaConnector, err = dda.NewConnector(cfg); err != nil {
 		log.Fatalln(err)
 	}
 
-	if err = ddaClient.Open(); err != nil {
+	if err = ddaConnector.Open(); err != nil {
 		log.Fatalln(err)
 	}
 
 	if cfg.Leader.Enabled {
-		if controller, err := controller.NewController(cfg.Controller, ddaClient); err != nil {
+		if controller, err := controller.NewController(cfg.Controller, ddaConnector); err != nil {
 			log.Fatalln(err)
 		} else {
 			controller.Start(ctx)
@@ -73,7 +73,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	getProductionChannel, err := ddaClient.SubscribeGetProduction(ctx)
+	getProductionChannel, err := ddaConnector.SubscribeGetProduction(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -91,7 +91,7 @@ func main() {
 		case newProduction := <-productionChannel:
 			pvProduction = newProduction
 		case getProductionRequest := <-getProductionChannel:
-			getProductionRequest.Callback(ddaClient.CreateGetProductionResponse(pvProduction))
+			getProductionRequest.Callback(ddaConnector.CreateGetProductionResponse(pvProduction))
 		case <-sigChan:
 			return
 		}
