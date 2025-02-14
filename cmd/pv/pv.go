@@ -10,6 +10,7 @@ import (
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/controller"
 	"code.siemens.com/energy-community-controller/ddaConnector"
+	"code.siemens.com/energy-community-controller/mqtt"
 	"github.com/google/uuid"
 )
 
@@ -29,15 +30,22 @@ func main() {
 	cfg.Leader.Bootstrap = *bootstrap
 
 	var ddaClient *ddaConnector.DdaClient
+	var mqttConnector *mqtt.Connector
+	var pvProduction int
 	var err error
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
+		log.Println("shutting down")
+		cancel()
+
 		if ddaClient != nil {
-			log.Println("shutting down")
-			cancel()
 			ddaClient.Close()
+		}
+
+		if mqttConnector != nil {
+			mqttConnector.Close()
 		}
 	}()
 
@@ -45,7 +53,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	if err := ddaClient.Open(); err != nil {
+	if err = ddaClient.Open(); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -57,20 +65,20 @@ func main() {
 		}
 	}
 
-	/*var gridConnector *internal.MqttConnector
-
-	defer func() {
-		if gridConnector != nil {
-			gridConnector.Disconnect(context.Background())
-		}
-	}()
-
-	gridConnector = internal.NewMqttConnector("tcp://localhost:1883")
-	if err = gridConnector.Connect(context.Background()); err != nil {
+	if mqttConnector, err = mqtt.NewConnector(cfg); err != nil {
 		log.Fatalln(err)
-	}*/
+	}
+
+	if err = mqttConnector.Open(ctx); err != nil {
+		log.Fatalln(err)
+	}
 
 	getProductionChannel, err := ddaClient.SubscribeGetProduction(ctx)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	productionChannel, err := mqttConnector.SubscribeToPvProduction(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -80,8 +88,10 @@ func main() {
 
 	for {
 		select {
+		case newProduction := <-productionChannel:
+			pvProduction = newProduction
 		case getProductionRequest := <-getProductionChannel:
-			getProductionRequest.Callback(ddaClient.CreateGetProductionResponse(1000))
+			getProductionRequest.Callback(ddaClient.CreateGetProductionResponse(pvProduction))
 		case <-sigChan:
 			return
 		}
