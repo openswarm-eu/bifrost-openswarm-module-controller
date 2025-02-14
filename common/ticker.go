@@ -17,7 +17,7 @@ func (t *Ticker) Start(duration time.Duration, callback func()) {
 		for {
 			select {
 			case <-ticker.C:
-				go callback()
+				callback()
 			case <-t.quit:
 				ticker.Stop()
 				t.started = false

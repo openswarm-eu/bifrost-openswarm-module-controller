@@ -20,7 +20,7 @@ func (t *Timer) Start(duration time.Duration, callback func()) {
 	go func() {
 		select {
 		case <-t.timer.C:
-			go callback()
+			callback()
 		case <-t.quit:
 			if !t.timer.Stop() {
 				<-t.timer.C

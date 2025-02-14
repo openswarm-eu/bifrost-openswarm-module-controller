@@ -75,3 +75,19 @@ func TestTickerStopAfterStop(t *testing.T) {
 		t.Errorf("Wrong number of invocations after Stop: %v", count)
 	}
 }
+
+func TestTickerOnlyOneActivationOnBlockingCallback(t *testing.T) {
+	subject := Ticker{}
+	count := 0
+
+	subject.Start(time.Millisecond*50, func() {
+		time.Sleep(time.Millisecond * 60)
+		count++
+	})
+	time.Sleep(time.Millisecond * 100)
+	subject.Stop()
+
+	if count != 1 {
+		t.Errorf("Wrong number of invocations after Stop: %v", count)
+	}
+}
