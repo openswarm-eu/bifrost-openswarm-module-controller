@@ -28,7 +28,7 @@ type LeaderElection struct {
 	cancel context.CancelFunc
 }
 
-func New(id string, consistencyProvider consistencyProvider, heartbeatPeriode int, heartbeatTimeoutBase int) *LeaderElection {
+func New(id string, consistencyProvider consistencyProvider, heartbeatPeriode time.Duration, heartbeatTimeoutBase time.Duration) *LeaderElection {
 	ctx, cancel := context.WithCancel(context.Background())
 	le := &LeaderElection{
 		id:                  id,
@@ -38,7 +38,7 @@ func New(id string, consistencyProvider consistencyProvider, heartbeatPeriode in
 		cancel:              cancel,
 	}
 
-	le.fsm = newFsm(le, time.Millisecond*time.Duration(heartbeatPeriode), time.Millisecond*time.Duration(heartbeatTimeoutBase))
+	le.fsm = newFsm(le, heartbeatPeriode, heartbeatTimeoutBase)
 
 	return le
 }

@@ -11,14 +11,15 @@ import (
 )
 
 type Controller struct {
+	config              common.ControllerConfig
 	connector           *ddaConnector.DdaClient
 	allocationAlgorithm allocationLogic
 	ctx                 context.Context
 }
 
-func NewController(connector *ddaConnector.DdaClient, allocationAlgorithmType string) (*Controller, error) {
-	c := Controller{connector: connector}
-	switch allocationAlgorithmType {
+func NewController(config common.ControllerConfig, connector *ddaConnector.DdaClient) (*Controller, error) {
+	c := Controller{config: config, connector: connector}
+	switch config.Algorithm {
 	case "equal":
 		c.allocationAlgorithm = equalAllocationAlgorithm{}
 	default:
@@ -27,7 +28,7 @@ func NewController(connector *ddaConnector.DdaClient, allocationAlgorithmType st
 	return &c, nil
 }
 
-func (c *Controller) Start(ctx context.Context, periode time.Duration) {
+func (c *Controller) Start(ctx context.Context) {
 	c.ctx = ctx
 	var ticker common.Ticker
 
@@ -37,7 +38,7 @@ func (c *Controller) Start(ctx context.Context, periode time.Duration) {
 			case v := <-c.connector.LeaderCh():
 				if v {
 					log.Println("I'm leader, starting logic")
-					ticker.Start(periode, c.logic)
+					ticker.Start(c.config.Periode, c.logic)
 				} else {
 					log.Println("Lost leadership, stop logic")
 					ticker.Stop()
@@ -89,7 +90,7 @@ func (c *Controller) logic() {
 		}
 	}()
 
-	<-time.After(100 * time.Millisecond)
+	<-time.After(c.config.WaitTimeForInputs)
 	cancel()
 
 	setPoints := c.allocationAlgorithm.calculateChargerPower(productions, chargerIds)

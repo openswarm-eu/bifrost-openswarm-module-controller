@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"time"
 
+	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/controller"
 	"code.siemens.com/energy-community-controller/ddaConnector"
 	"github.com/google/uuid"
@@ -20,7 +21,7 @@ func main() {
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
 	flag.Parse()
 
-	cfg := ddaConnector.NewConfig()
+	cfg := common.NewConfig()
 	cfg.Url = "tcp://localhost:1883"
 	cfg.Name = "charger"
 	cfg.Id = uuid.NewString()
@@ -50,10 +51,10 @@ func main() {
 	}
 
 	if cfg.Leader.Enabled {
-		if controller, err := controller.NewController(ddaClient, "equal"); err != nil {
+		if controller, err := controller.NewController(cfg.Controller, ddaClient); err != nil {
 			log.Fatalln(err)
 		} else {
-			controller.Start(ctx, 10*time.Second)
+			controller.Start(ctx)
 		}
 	}
 
@@ -88,7 +89,7 @@ func main() {
 		case getChargerRequest := <-getChargerChannel:
 			getChargerRequest.Callback(ddaClient.CreateGetChargerResponse())
 		case chargingSetPoint := <-chargingSetPointChannel:
-			if chargingSetPoint.Timestamp.After(time.Now().Add(-1000 * time.Millisecond)) {
+			if chargingSetPoint.Timestamp.After(time.Now().Add(cfg.Charger.MaximumAcceptableSetPointOffset)) {
 				log.Printf("Got new charging set point: %d", chargingSetPoint.Value)
 			} else {
 				log.Println("Got too old chargingPoint, ignoring it")

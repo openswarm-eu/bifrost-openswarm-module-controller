@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"time"
 
+	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/controller"
 	"code.siemens.com/energy-community-controller/ddaConnector"
 	"github.com/google/uuid"
@@ -20,7 +20,7 @@ func main() {
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
 	flag.Parse()
 
-	cfg := ddaConnector.NewConfig()
+	cfg := common.NewConfig()
 	cfg.Url = "tcp://localhost:1883"
 	cfg.Name = "pv"
 	cfg.Id = uuid.NewString()
@@ -50,10 +50,10 @@ func main() {
 	}
 
 	if cfg.Leader.Enabled {
-		if controller, err := controller.NewController(ddaClient, "equal"); err != nil {
+		if controller, err := controller.NewController(cfg.Controller, ddaClient); err != nil {
 			log.Fatalln(err)
 		} else {
-			controller.Start(ctx, 10*time.Second)
+			controller.Start(ctx)
 		}
 	}
 

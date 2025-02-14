@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/ddaConnector/leaderElection"
 	"github.com/coatyio/dda/config"
 	"github.com/coatyio/dda/dda"
@@ -25,12 +26,12 @@ type Value struct {
 }
 
 type DdaClient struct {
-	cfg            *Config
+	cfg            *common.Config
 	ddaClient      *dda.Dda
 	leaderElection *leaderElection.LeaderElection
 }
 
-func NewConnector(cfg *Config) (*DdaClient, error) {
+func NewConnector(cfg *common.Config) (*DdaClient, error) {
 	c := DdaClient{cfg: cfg}
 
 	ddaConfig := config.New()
