@@ -1,0 +1,10 @@
+FROM golang:1.24.0-alpine AS builder
+WORKDIR /go/src/code.siemens.com/energy-community-controller/
+COPY . .
+RUN GOOS=linux go build cmd/charger/charger.go
+
+FROM alpine:latest
+RUN apk add libstdc++
+COPY --from=builder /go/src/code.siemens.com/energy-community-controller/charger /usr/bin
+ENTRYPOINT ["charger"]
+CMD ["-url", "tcp://host.docker.internal:1883"]

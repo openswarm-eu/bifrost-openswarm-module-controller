@@ -1,0 +1,10 @@
+FROM golang:1.24.0-alpine AS builder
+WORKDIR /go/src/code.siemens.com/energy-community-controller/
+COPY . .
+RUN GOOS=linux go build cmd/pv/pv.go
+
+FROM alpine:latest
+RUN apk add libstdc++
+COPY --from=builder /go/src/code.siemens.com/energy-community-controller/pv /usr/bin
+ENTRYPOINT ["pv"]
+CMD ["-url", "tcp://host.docker.internal:1883"]
