@@ -20,19 +20,19 @@ func main() {
 
 	var id string
 	var url string
-	var energyCommunity string
+	var energyCommunityId string
 	bootstrap := flag.Bool("b", false, "bootstrap raft")
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
 	flag.StringVar(&id, "id", uuid.NewString(), "id")
 	flag.StringVar(&url, "url", "tcp://localhost:1883", "mqtt url")
-	flag.StringVar(&energyCommunity, "energyCommunity", "energyCommunity", "energy community id")
+	flag.StringVar(&energyCommunityId, "energyCommunityId", "energyCommunity", "energy community id")
 	flag.Parse()
 
 	cfg := common.NewConfig()
 	cfg.Name = "charger"
 	cfg.Url = url
 	cfg.Id = id
-	cfg.EnergyCommunity = energyCommunity
+	cfg.EnergyCommunityId = energyCommunityId
 	cfg.Leader.Enabled = *leadershipElectionEnabled
 	cfg.Leader.Bootstrap = *bootstrap
 

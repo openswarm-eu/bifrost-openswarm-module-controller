@@ -7,13 +7,13 @@ import (
 )
 
 type Config struct {
-	Url             string
-	Name            string
-	Id              string
-	EnergyCommunity string
-	Leader          LeaderConfig
-	Controller      ControllerConfig
-	Charger         ChargerConfig
+	Url               string
+	Name              string
+	Id                string
+	EnergyCommunityId string
+	Leader            LeaderConfig
+	Controller        ControllerConfig
+	Charger           ChargerConfig
 }
 
 type LeaderConfig struct {
@@ -36,10 +36,10 @@ type ChargerConfig struct {
 
 func NewConfig() *Config {
 	return &Config{
-		Url:             "",
-		Name:            "DDA",
-		Id:              uuid.NewString(),
-		EnergyCommunity: "energyCommunity",
+		Url:               "",
+		Name:              "DDA",
+		Id:                uuid.NewString(),
+		EnergyCommunityId: "energyCommunity",
 		Leader: LeaderConfig{
 			Enabled:              false,
 			Protocol:             "raft",

@@ -40,7 +40,7 @@ func NewConnector(cfg *common.Config) (*Connector, error) {
 	ddaConfig.Identity.Id = cfg.Id
 	ddaConfig.Apis.Grpc.Disabled = true
 	ddaConfig.Apis.GrpcWeb.Disabled = true
-	ddaConfig.Cluster = cfg.EnergyCommunity
+	ddaConfig.Cluster = cfg.EnergyCommunityId
 	if cfg.Leader.Enabled {
 		switch cfg.Leader.Protocol {
 		case "raft":
