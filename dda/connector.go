@@ -22,7 +22,7 @@ type Message struct {
 
 type Value struct {
 	Message
-	Value int
+	Value float64
 }
 
 type Connector struct {
@@ -189,7 +189,7 @@ func (c *Connector) CreateGetChargerResponse() api.ActionResult {
 	return api.ActionResult{Data: data}
 }
 
-func (c *Connector) CreateGetProductionResponse(production int) api.ActionResult {
+func (c *Connector) CreateGetProductionResponse(production float64) api.ActionResult {
 	msg := ddaValue{ddaMessage: ddaMessage{Id: c.cfg.Id, Timestamp: time.Now().Unix()}, Value: production}
 	data, _ := json.Marshal(msg)
 	return api.ActionResult{Data: data}
@@ -206,5 +206,5 @@ type ddaMessage struct {
 
 type ddaValue struct {
 	ddaMessage
-	Value int
+	Value float64
 }

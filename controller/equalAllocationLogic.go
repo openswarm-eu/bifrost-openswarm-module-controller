@@ -13,15 +13,15 @@ func (equalAllocationAlgorithm) calculateChargerPower(pvProductionValues []dda.V
 	log.Println(pvProductionValues)
 	log.Println(chargers)
 
-	var sumPvProduction int
+	var sumPvProduction float64
 	for _, productionValue := range pvProductionValues {
 		sumPvProduction += productionValue.Value
 	}
 
-	var chargingSetPoint int
+	var chargingSetPoint float64
 	numChargers := len(chargers)
 	if numChargers > 0 {
-		chargingSetPoint = sumPvProduction / len(chargers)
+		chargingSetPoint = sumPvProduction / float64(len(chargers))
 	} else {
 		chargingSetPoint = 0
 	}

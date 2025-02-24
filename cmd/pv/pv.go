@@ -37,7 +37,7 @@ func main() {
 
 	var ddaConnector *dda.Connector
 	var mqttConnector *mqtt.Connector
-	var pvProduction int
+	var pvProduction float64
 	var err error
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -95,7 +95,7 @@ func main() {
 	for {
 		select {
 		case newProduction := <-productionChannel:
-			log.Printf("Got new production value: %d", newProduction)
+			log.Printf("Got new production value: %f", newProduction)
 			pvProduction = newProduction
 		case getProductionRequest := <-getProductionChannel:
 			getProductionRequest.Callback(ddaConnector.CreateGetProductionResponse(pvProduction))

@@ -104,7 +104,7 @@ func main() {
 			getChargerRequest.Callback(ddaConnector.CreateGetChargerResponse())
 		case chargingSetPoint := <-chargingSetPointChannel:
 			if chargingSetPoint.Timestamp.After(time.Now().Add(-cfg.Charger.MaximumAcceptableSetPointOffset)) {
-				log.Printf("Got new charging set point: %d", chargingSetPoint.Value)
+				log.Printf("Got new charging set point: %f", chargingSetPoint.Value)
 				chargingSetPointMonitor.Reset(chargingSetPointMonitorDuration)
 				mqttConnector.PublishChargingSetPoint(ctx, chargingSetPoint.Value)
 			} else {

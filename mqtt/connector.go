@@ -18,7 +18,7 @@ type Connector struct {
 	cliCfg              autopaho.ClientConfig
 	mqttConnection      *autopaho.ConnectionManager
 	router              paho.Router
-	pvProductionChannel chan int
+	pvProductionChannel chan float64
 }
 
 func NewConnector(config *common.Config) (*Connector, error) {
@@ -73,7 +73,7 @@ func (c *Connector) Close() {
 	c.mqttConnection.Disconnect(context.Background())
 }
 
-func (c *Connector) PublishChargingSetPoint(ctx context.Context, chargingSetPoint int) error {
+func (c *Connector) PublishChargingSetPoint(ctx context.Context, chargingSetPoint float64) error {
 	chargingSetPointMessage := chargingSetPointMessage{ChargingSetPoint: chargingSetPoint}
 	payload, _ := json.Marshal(chargingSetPointMessage)
 
@@ -86,8 +86,8 @@ func (c *Connector) PublishChargingSetPoint(ctx context.Context, chargingSetPoin
 	return err
 }
 
-func (c *Connector) SubscribeToPvProduction(ctx context.Context) (<-chan int, error) {
-	c.pvProductionChannel = make(chan int)
+func (c *Connector) SubscribeToPvProduction(ctx context.Context) (<-chan float64, error) {
+	c.pvProductionChannel = make(chan float64)
 	topic := fmt.Sprintf("%s/%s", c.config.Id, production_topic)
 
 	c.router.RegisterHandler(topic, func(p *paho.Publish) {
@@ -109,11 +109,11 @@ func (c *Connector) SubscribeToPvProduction(ctx context.Context) (<-chan int, er
 const production_topic = "production"
 
 type pvProductionMessage struct {
-	Production int `json:"production"`
+	Production float64 `json:"production"`
 }
 
 const charging_set_point_topic = "chargingSetPoint"
 
 type chargingSetPointMessage struct {
-	ChargingSetPoint int `json:"chargingSetPoint"`
+	ChargingSetPoint float64 `json:"chargingSetPoint"`
 }
