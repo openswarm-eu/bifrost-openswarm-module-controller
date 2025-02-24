@@ -1,8 +1,8 @@
 # CMD
 The following command line arguments are used to configure the behaviour
-+ -mqtt: the MQTT broker URL
++ -url: the MQTT broker URL
 + -id: ID of the node (has to be unique)
-+ energyCommunityId: the ID of the energy community this node is part of
++ -energyCommunityId: the ID of the energy community this node is part of
 
 Futhermore, the following flags are used:
 + -l: be part of the leader election cluster
