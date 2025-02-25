@@ -44,12 +44,12 @@ func NewConfig() *Config {
 			Enabled:              false,
 			Protocol:             "raft",
 			Bootstrap:            false,
-			HeartbeatPeriode:     5000 * time.Millisecond,
-			HeartbeatTimeoutBase: 5200 * time.Millisecond,
+			HeartbeatPeriode:     1000 * time.Millisecond,
+			HeartbeatTimeoutBase: 1200 * time.Millisecond,
 		},
 		Controller: ControllerConfig{
 			Algorithm:         "equal",
-			Periode:           10000 * time.Millisecond,
+			Periode:           1000 * time.Millisecond,
 			WaitTimeForInputs: 100 * time.Millisecond,
 		},
 		Charger: ChargerConfig{
