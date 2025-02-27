@@ -91,7 +91,7 @@ func TestTimerStopAfterStop(t *testing.T) {
 	}
 }
 
-func TestTimerReset(t *testing.T) {
+func TestTimerResetBeforeCallback(t *testing.T) {
 	subject := Timer{}
 	count := 0
 
@@ -103,6 +103,31 @@ func TestTimerReset(t *testing.T) {
 	subject.Reset(time.Millisecond * 100)
 	time.Sleep(time.Millisecond * 70)
 	if count != 0 {
+		t.Errorf("Wrong number of invocations after reStart: %v", count)
+	}
+
+	time.Sleep(time.Millisecond * 70)
+	if count != 1 {
+		t.Errorf("Wrong number of invocations after reStart: %v", count)
+	}
+}
+
+func TestTimerResetAfterCallback(t *testing.T) {
+	subject := Timer{}
+	count := 0
+
+	subject.Start(time.Millisecond*100, func() {
+		count++
+	})
+
+	time.Sleep(time.Millisecond * 120)
+	if count != 1 {
+		t.Errorf("Wrong number of invocations after reStart: %v", count)
+	}
+
+	subject.Reset(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 110)
+	if count != 1 {
 		t.Errorf("Wrong number of invocations after reStart: %v", count)
 	}
 }

@@ -66,8 +66,7 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 			log.Println("leader: heartbeatTimeout --> follower")
 			f.heartbeatSender.Stop()
 			logic.leaderCh() <- false
-			f.timeout = getRandomTimeout(timeoutBase)
-			f.heartbeatMonitor.Reset(f.timeout)
+			f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
 			return follower
 		},
 	}
@@ -76,14 +75,14 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 		ownHeartbeatReceived: func() state {
 			log.Println("candidate: ownHeartbeatReceived --> leader")
 			logic.leaderCh() <- true
-			f.heartbeatMonitor.Reset(f.timeout)
+			f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
 			return leader
 		},
 		differentHeartbeatReceived: func() state {
 			log.Println("candidate: differentHeartbeatReceived --> follower")
 			f.heartbeatSender.Stop()
 			f.timeout = getRandomTimeout(timeoutBase)
-			f.heartbeatMonitor.Reset(f.timeout)
+			f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
 			return follower
 		},
 	}

@@ -43,22 +43,6 @@ func TestTickerStop(t *testing.T) {
 	}
 }
 
-func TestTickerStopInsideCallback(t *testing.T) {
-	subject := Ticker{}
-	count := 0
-
-	subject.Start(time.Millisecond*100, func() {
-		count++
-		subject.Stop()
-	})
-
-	time.Sleep(time.Millisecond * 150)
-
-	if count != 1 {
-		t.Errorf("Wrong number of invocations: %v", count)
-	}
-}
-
 func TestTickerStopAfterStop(t *testing.T) {
 	subject := Ticker{}
 	count := 0

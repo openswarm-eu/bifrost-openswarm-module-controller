@@ -8,11 +8,12 @@ type Ticker struct {
 }
 
 func (t *Ticker) Start(duration time.Duration, callback func()) {
+	callback()
+
 	t.started = true
 	t.quit = make(chan bool)
 
 	ticker := time.NewTicker(duration)
-	go callback()
 	go func() {
 		for {
 			select {
