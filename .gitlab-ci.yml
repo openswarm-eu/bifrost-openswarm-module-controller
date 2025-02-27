@@ -1,0 +1,45 @@
+build-charger:
+  variables:
+    http_proxy: $CODE_PROXY
+    https_proxy: $CODE_PROXY
+    no_proxy: code.siemens.com,$CI_REGISTRY
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: ['']
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context $CI_PROJECT_DIR
+      --dockerfile $CI_PROJECT_DIR/Dockerfile-charger
+      --build-arg http_proxy=$CODE_PROXY
+      --build-arg https_proxy=$CODE_PROXY
+      --build-arg no_proxy=code.siemens.com,$CI_REGISTRY
+      --destination $CI_REGISTRY/openswarm/energy-community-controller/charger
+  tags:
+    - DOCKER
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+build-pv:
+  variables:
+    http_proxy: $CODE_PROXY
+    https_proxy: $CODE_PROXY
+    no_proxy: code.siemens.com,$CI_REGISTRY
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: ['']
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context $CI_PROJECT_DIR
+      --dockerfile $CI_PROJECT_DIR/Dockerfile-pv
+      --build-arg http_proxy=$CODE_PROXY
+      --build-arg https_proxy=$CODE_PROXY
+      --build-arg no_proxy=code.siemens.com,$CI_REGISTRY
+      --destination $CI_REGISTRY/openswarm/energy-community-controller/pv
+  tags:
+    - DOCKER
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
