@@ -28,24 +28,28 @@ const (
 type transition func() state
 
 type fsm struct {
-	logic        logic
-	currentState state
-	transitions  map[state]map[event]transition
-
+	id               string
+	api              leaderElectionAPI
+	mu               sync.Mutex
 	heartbeatMonitor common.Timer
 	heartbeatSender  common.Ticker
 
-	timeout time.Duration
-
-	mu sync.Mutex
+	currentState        state
+	transitions         map[state]map[event]transition
+	timeout             time.Duration
+	highestReceivedTerm uint64
+	currentTerm         uint64
+	currentLeader       string
 }
 
-func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm {
+func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase time.Duration) *fsm {
 	f := fsm{
-		logic:        logic,
-		currentState: follower,
-		transitions:  make(map[state]map[event]transition),
-		timeout:      getRandomTimeout(timeoutBase),
+		id:                  id,
+		api:                 api,
+		currentState:        follower,
+		transitions:         make(map[state]map[event]transition),
+		timeout:             getRandomTimeout(timeoutBase),
+		highestReceivedTerm: 0,
 	}
 
 	f.transitions[leader] = map[event]transition{
@@ -57,7 +61,7 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 		differentHeartbeatReceived: func() state {
 			log.Println("leader: differentHeartbeatReceived --> follower")
 			f.heartbeatSender.Stop()
-			logic.leaderCh() <- false
+			api.leaderCh() <- false
 			f.timeout = getRandomTimeout(timeoutBase)
 			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
@@ -65,8 +69,8 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 		heartbeatTimeout: func() state {
 			log.Println("leader: heartbeatTimeout --> follower")
 			f.heartbeatSender.Stop()
-			logic.leaderCh() <- false
-			f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
+			api.leaderCh() <- false
+			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
 			return follower
 		},
 	}
@@ -74,15 +78,15 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 	f.transitions[candidate] = map[event]transition{
 		ownHeartbeatReceived: func() state {
 			log.Println("candidate: ownHeartbeatReceived --> leader")
-			logic.leaderCh() <- true
-			f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
+			api.leaderCh() <- true
+			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
 			return leader
 		},
 		differentHeartbeatReceived: func() state {
 			log.Println("candidate: differentHeartbeatReceived --> follower")
 			f.heartbeatSender.Stop()
 			f.timeout = getRandomTimeout(timeoutBase)
-			f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
+			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
 			return follower
 		},
 	}
@@ -100,7 +104,8 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 		},
 		heartbeatTimeout: func() state {
 			log.Println("follower: heartbeatTimeout --> candidate")
-			f.heartbeatSender.Start(periode, logic.sendHeartbeat)
+			f.currentTerm = f.highestReceivedTerm + 1
+			f.heartbeatSender.Start(periode, f.sendHeartbeat)
 			return candidate
 		},
 	}
@@ -109,7 +114,26 @@ func newFsm(logic logic, periode time.Duration, timeoutBase time.Duration) *fsm 
 }
 
 func (f *fsm) start() {
-	f.heartbeatMonitor.Start(f.timeout, f.logic.heartbeatTimeout)
+	f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
+}
+
+func (f *fsm) handleHeartbeat(leaderHeartbeat leaderHeartbeat) {
+	if leaderHeartbeat.Term == f.highestReceivedTerm && leaderHeartbeat.LeaderId == f.id {
+		f.applyEvent(ownHeartbeatReceived)
+	} else if leaderHeartbeat.Term == f.highestReceivedTerm && leaderHeartbeat.LeaderId == f.currentLeader {
+		// ignore heartbeats in the same term but from different candidates
+		f.applyEvent(differentHeartbeatReceived)
+	} else if leaderHeartbeat.Term > f.highestReceivedTerm {
+		f.highestReceivedTerm = leaderHeartbeat.Term
+		f.currentLeader = leaderHeartbeat.LeaderId
+		if leaderHeartbeat.LeaderId == f.id {
+			f.applyEvent(ownHeartbeatReceived)
+		} else {
+			f.applyEvent(differentHeartbeatReceived)
+		}
+	} else {
+		log.Printf("Ignoring heartbeat! Highest reveid term: %d - current leader: %s", f.highestReceivedTerm, f.currentLeader)
+	}
 }
 
 func (f *fsm) applyEvent(event event) {
@@ -126,13 +150,21 @@ func (f *fsm) close() {
 	f.heartbeatSender.Stop()
 }
 
+func (f *fsm) heartbeatTimeout() {
+	log.Println("heartbeat timeout")
+	f.applyEvent(heartbeatTimeout)
+}
+
+func (f *fsm) sendHeartbeat() {
+	f.api.sendHeartbeat(f.id, f.currentTerm)
+}
+
 func getRandomTimeout(heartbeatTimeoutBase time.Duration) time.Duration {
 	timeout := heartbeatTimeoutBase.Milliseconds() + int64(rand.Float64()*float64(heartbeatTimeoutBase.Milliseconds()))
 	return time.Duration(timeout) * time.Millisecond
 }
 
-type logic interface {
-	heartbeatTimeout()
-	sendHeartbeat()
+type leaderElectionAPI interface {
+	sendHeartbeat(id string, term uint64)
 	leaderCh() chan bool
 }

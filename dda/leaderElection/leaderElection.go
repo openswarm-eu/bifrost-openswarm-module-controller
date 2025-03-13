@@ -2,6 +2,7 @@ package leaderElection
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -17,8 +18,12 @@ type consistencyProvider interface {
 	proposeInput(ctx context.Context, in *api.Input) error
 }
 
+type leaderHeartbeat struct {
+	Term     uint64
+	LeaderId string
+}
+
 type LeaderElection struct {
-	id                  string
 	consistencyProvider consistencyProvider
 
 	leaderChannel chan bool
@@ -31,15 +36,13 @@ type LeaderElection struct {
 func New(id string, consistencyProvider consistencyProvider, heartbeatPeriode time.Duration, heartbeatTimeoutBase time.Duration) *LeaderElection {
 	ctx, cancel := context.WithCancel(context.Background())
 	le := &LeaderElection{
-		id:                  id,
 		consistencyProvider: consistencyProvider,
 		leaderChannel:       make(chan bool, 1),
 		ctx:                 ctx,
 		cancel:              cancel,
 	}
 
-	le.fsm = newFsm(le, heartbeatPeriode, heartbeatTimeoutBase)
-
+	le.fsm = newFsm(id, le, heartbeatPeriode, heartbeatTimeoutBase)
 	return le
 }
 
@@ -73,8 +76,6 @@ func (le *LeaderElection) Close() {
 }
 
 func (le *LeaderElection) handleStateUpdate(change api.Input) {
-	log.Printf("%d: %s-%s", change.Op, change.Key, change.Value)
-
 	if change.Key != LEADER_KEY {
 		return
 	}
@@ -83,24 +84,31 @@ func (le *LeaderElection) handleStateUpdate(change api.Input) {
 		return
 	}
 
-	if le.id == string(change.Value) {
-		le.fsm.applyEvent(ownHeartbeatReceived)
-	} else {
-		le.fsm.applyEvent(differentHeartbeatReceived)
+	log.Printf("received leader heartbeat %s", change.Value)
+
+	var leaderHeartbeat leaderHeartbeat
+	if err := json.Unmarshal(change.Value, &leaderHeartbeat); err != nil {
+		log.Printf("Error unmarshalling leader heartbeat: %s", err)
+		return
 	}
+
+	le.fsm.handleHeartbeat(leaderHeartbeat)
 }
 
-func (le *LeaderElection) heartbeatTimeout() {
-	log.Println("heartbeat timeout")
-	le.fsm.applyEvent(heartbeatTimeout)
-}
-
-func (le *LeaderElection) sendHeartbeat() {
+func (le *LeaderElection) sendHeartbeat(id string, term uint64) {
 	log.Println("sending heartbeat")
+
+	leaderHeartbeat := leaderHeartbeat{
+		Term:     term,
+		LeaderId: id,
+	}
+
+	value, _ := json.Marshal(leaderHeartbeat)
+
 	input := api.Input{
 		Op:    api.InputOpSet,
 		Key:   LEADER_KEY,
-		Value: []byte(le.id),
+		Value: value,
 	}
 
 	if err := le.consistencyProvider.proposeInput(le.ctx, &input); err != nil {
