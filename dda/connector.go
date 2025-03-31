@@ -3,7 +3,6 @@ package dda
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log"
 	"time"
 
@@ -41,18 +40,12 @@ func NewConnector(cfg *common.Config) (*Connector, error) {
 	ddaConfig.Apis.Grpc.Disabled = true
 	ddaConfig.Apis.GrpcWeb.Disabled = true
 	ddaConfig.Cluster = cfg.EnergyCommunityId
+
 	if cfg.Leader.Enabled {
-		switch cfg.Leader.Protocol {
-		case "raft":
-			ddaConfig.Services.State.Protocol = cfg.Leader.Protocol
-			ddaConfig.Services.State.Disabled = false
-			ddaConfig.Services.State.Bootstrap = cfg.Leader.Bootstrap
-			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewRaftConsistencyProvider(), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
-		case "dda":
-			c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, leaderElection.NewDdaConsistencyProvider(), cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
-		default:
-			return nil, errors.New("unknown leader election protocol")
-		}
+		ddaConfig.Services.State.Protocol = "raft"
+		ddaConfig.Services.State.Disabled = false
+		ddaConfig.Services.State.Bootstrap = cfg.Leader.Bootstrap
+		c.leaderElection = leaderElection.New(ddaConfig.Identity.Id, cfg.Leader.HeartbeatPeriode, cfg.Leader.HeartbeatTimeoutBase)
 	}
 
 	var err error

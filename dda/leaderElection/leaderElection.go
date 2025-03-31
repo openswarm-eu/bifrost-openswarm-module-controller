@@ -12,19 +12,13 @@ import (
 
 const LEADER_KEY = "leader"
 
-type consistencyProvider interface {
-	open(ddaClient *dda.Dda)
-	observeStateChange(ctx context.Context) (<-chan api.Input, error)
-	proposeInput(ctx context.Context, in *api.Input) error
-}
-
 type leaderHeartbeat struct {
 	Term     uint64
 	LeaderId string
 }
 
 type LeaderElection struct {
-	consistencyProvider consistencyProvider
+	ddaClient *dda.Dda
 
 	leaderChannel chan bool
 	fsm           *fsm
@@ -33,13 +27,12 @@ type LeaderElection struct {
 	cancel context.CancelFunc
 }
 
-func New(id string, consistencyProvider consistencyProvider, heartbeatPeriode time.Duration, heartbeatTimeoutBase time.Duration) *LeaderElection {
+func New(id string, heartbeatPeriode time.Duration, heartbeatTimeoutBase time.Duration) *LeaderElection {
 	ctx, cancel := context.WithCancel(context.Background())
 	le := &LeaderElection{
-		consistencyProvider: consistencyProvider,
-		leaderChannel:       make(chan bool, 1),
-		ctx:                 ctx,
-		cancel:              cancel,
+		leaderChannel: make(chan bool, 1),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	le.fsm = newFsm(id, le, heartbeatPeriode, heartbeatTimeoutBase)
@@ -47,9 +40,8 @@ func New(id string, consistencyProvider consistencyProvider, heartbeatPeriode ti
 }
 
 func (le *LeaderElection) Open(ddaClient *dda.Dda) error {
-	le.consistencyProvider.open(ddaClient)
-
-	sc, err := le.consistencyProvider.observeStateChange(le.ctx)
+	le.ddaClient = ddaClient
+	sc, err := le.ddaClient.ObserveStateChange(le.ctx)
 	if err != nil {
 		return err
 	}
@@ -111,7 +103,7 @@ func (le *LeaderElection) sendHeartbeat(id string, term uint64) {
 		Value: value,
 	}
 
-	if err := le.consistencyProvider.proposeInput(le.ctx, &input); err != nil {
+	if err := le.ddaClient.ProposeInput(le.ctx, &input); err != nil {
 		log.Printf("leader election - Could not send heartbeat: %s", err)
 	}
 }

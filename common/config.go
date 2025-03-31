@@ -18,7 +18,6 @@ type Config struct {
 
 type LeaderConfig struct {
 	Enabled              bool
-	Protocol             string
 	Bootstrap            bool
 	HeartbeatPeriode     time.Duration
 	HeartbeatTimeoutBase time.Duration
@@ -42,7 +41,6 @@ func NewConfig() *Config {
 		EnergyCommunityId: "energyCommunity",
 		Leader: LeaderConfig{
 			Enabled:              false,
-			Protocol:             "raft",
 			Bootstrap:            false,
 			HeartbeatPeriode:     1000 * time.Millisecond,
 			HeartbeatTimeoutBase: 1200 * time.Millisecond,
