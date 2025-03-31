@@ -84,11 +84,11 @@ func (le *LeaderElection) handleStateUpdate(change api.Input) {
 		return
 	}
 
-	log.Printf("received leader heartbeat %s", change.Value)
+	log.Printf("leader election - received heartbeat %s", change.Value)
 
 	var leaderHeartbeat leaderHeartbeat
 	if err := json.Unmarshal(change.Value, &leaderHeartbeat); err != nil {
-		log.Printf("Error unmarshalling leader heartbeat: %s", err)
+		log.Printf("leader election - error unmarshalling leader heartbeat: %s", err)
 		return
 	}
 
@@ -96,7 +96,7 @@ func (le *LeaderElection) handleStateUpdate(change api.Input) {
 }
 
 func (le *LeaderElection) sendHeartbeat(id string, term uint64) {
-	log.Println("sending heartbeat")
+	log.Println("leader election - sending heartbeat")
 
 	leaderHeartbeat := leaderHeartbeat{
 		Term:     term,
@@ -112,7 +112,7 @@ func (le *LeaderElection) sendHeartbeat(id string, term uint64) {
 	}
 
 	if err := le.consistencyProvider.proposeInput(le.ctx, &input); err != nil {
-		log.Printf("Could not send heartbeat: %s", err)
+		log.Printf("leader election - Could not send heartbeat: %s", err)
 	}
 }
 
