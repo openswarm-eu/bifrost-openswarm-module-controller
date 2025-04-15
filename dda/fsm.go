@@ -1,4 +1,4 @@
-package leaderElection
+package dda
 
 import (
 	"log"
@@ -34,6 +34,9 @@ type fsm struct {
 	heartbeatMonitor common.Timer
 	heartbeatSender  common.Ticker
 
+	observers      map[uint64]chan bool
+	nextObserverId uint64
+
 	currentState        state
 	transitions         map[state]map[event]transition
 	timeout             time.Duration
@@ -46,6 +49,8 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 	f := fsm{
 		id:                  id,
 		api:                 api,
+		observers:           make(map[uint64]chan bool),
+		nextObserverId:      0,
 		currentState:        follower,
 		transitions:         make(map[state]map[event]transition),
 		timeout:             getRandomTimeout(timeoutBase),
@@ -61,7 +66,7 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 		differentHeartbeatReceived: func() state {
 			log.Println("leader election - leader: differentHeartbeatReceived --> follower")
 			f.heartbeatSender.Stop()
-			api.leaderCh() <- false
+			f.updateLeadership(false)
 			f.timeout = getRandomTimeout(timeoutBase)
 			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
@@ -69,7 +74,7 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 		heartbeatTimeout: func() state {
 			log.Println("leader election - leader: heartbeatTimeout --> follower")
 			f.heartbeatSender.Stop()
-			api.leaderCh() <- false
+			f.updateLeadership(false)
 			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
 			return follower
 		},
@@ -78,7 +83,7 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 	f.transitions[candidate] = map[event]transition{
 		ownHeartbeatReceived: func() state {
 			log.Println("leader election - candidate: ownHeartbeatReceived --> leader")
-			api.leaderCh() <- true
+			f.updateLeadership(true)
 			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
 			return leader
 		},
@@ -145,6 +150,28 @@ func (f *fsm) applyEvent(event event) {
 	}
 }
 
+func (f *fsm) addStateChangeObserver(ch chan bool) uint64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.nextObserverId++
+	f.observers[f.nextObserverId] = ch
+
+	return f.nextObserverId
+}
+
+func (f *fsm) removeStateChangeObserver(chanId uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.observers, chanId)
+}
+
+func (f *fsm) updateLeadership(value bool) {
+	for _, observer := range f.observers {
+		observer <- value
+	}
+}
+
 func (f *fsm) close() {
 	f.heartbeatMonitor.Stop()
 	f.heartbeatSender.Stop()
@@ -166,5 +193,4 @@ func getRandomTimeout(heartbeatTimeoutBase time.Duration) time.Duration {
 
 type leaderElectionAPI interface {
 	sendHeartbeat(id string, term uint64)
-	leaderCh() chan bool
 }

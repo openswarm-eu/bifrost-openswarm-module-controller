@@ -1,4 +1,4 @@
-package leaderElection
+package dda
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/coatyio/dda/dda"
 	"github.com/coatyio/dda/services/state/api"
 )
 
@@ -18,10 +17,8 @@ type leaderHeartbeat struct {
 }
 
 type LeaderElection struct {
-	ddaClient *dda.Dda
-
-	leaderChannel chan bool
-	fsm           *fsm
+	ddaConnector *Connector
+	fsm          *fsm
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -30,18 +27,17 @@ type LeaderElection struct {
 func New(id string, heartbeatPeriode time.Duration, heartbeatTimeoutBase time.Duration) *LeaderElection {
 	ctx, cancel := context.WithCancel(context.Background())
 	le := &LeaderElection{
-		leaderChannel: make(chan bool, 1),
-		ctx:           ctx,
-		cancel:        cancel,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	le.fsm = newFsm(id, le, heartbeatPeriode, heartbeatTimeoutBase)
 	return le
 }
 
-func (le *LeaderElection) Open(ddaClient *dda.Dda) error {
-	le.ddaClient = ddaClient
-	sc, err := le.ddaClient.ObserveStateChange(le.ctx)
+func (le *LeaderElection) Open(ddaConnector *Connector) error {
+	le.ddaConnector = ddaConnector
+	sc, err := le.ddaConnector.ObserveStateChange(le.ctx)
 	if err != nil {
 		return err
 	}
@@ -56,15 +52,22 @@ func (le *LeaderElection) Open(ddaClient *dda.Dda) error {
 	return nil
 }
 
-func (le *LeaderElection) LeaderCh() <-chan bool {
-	return le.leaderChannel
+func (le *LeaderElection) LeaderCh(ctx context.Context) <-chan bool {
+	leaderChannel := make(chan bool, 1)
+	id := le.fsm.addStateChangeObserver(leaderChannel)
+
+	go func() {
+		defer close(leaderChannel)
+		defer le.fsm.removeStateChangeObserver(id)
+		<-ctx.Done()
+	}()
+
+	return leaderChannel
 }
 
 func (le *LeaderElection) Close() {
-	le.leaderChannel <- false
 	le.fsm.close()
 	le.cancel()
-	close(le.leaderChannel)
 }
 
 func (le *LeaderElection) handleStateUpdate(change api.Input) {
@@ -103,11 +106,7 @@ func (le *LeaderElection) sendHeartbeat(id string, term uint64) {
 		Value: value,
 	}
 
-	if err := le.ddaClient.ProposeInput(le.ctx, &input); err != nil {
+	if err := le.ddaConnector.ProposeInput(le.ctx, &input); err != nil {
 		log.Printf("leader election - Could not send heartbeat: %s", err)
 	}
-}
-
-func (le *LeaderElection) leaderCh() chan bool {
-	return le.leaderChannel
 }

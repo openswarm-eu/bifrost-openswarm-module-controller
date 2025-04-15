@@ -10,6 +10,7 @@ type Config struct {
 	Url               string
 	Name              string
 	Id                string
+	SensorId          string
 	EnergyCommunityId string
 	Leader            LeaderConfig
 	Controller        ControllerConfig
@@ -24,7 +25,6 @@ type LeaderConfig struct {
 }
 
 type ControllerConfig struct {
-	Algorithm         string
 	Periode           time.Duration
 	WaitTimeForInputs time.Duration
 }
@@ -38,6 +38,7 @@ func NewConfig() *Config {
 		Url:               "",
 		Name:              "DDA",
 		Id:                uuid.NewString(),
+		SensorId:          "",
 		EnergyCommunityId: "energyCommunity",
 		Leader: LeaderConfig{
 			Enabled:              false,
@@ -46,7 +47,6 @@ func NewConfig() *Config {
 			HeartbeatTimeoutBase: 1200 * time.Millisecond,
 		},
 		Controller: ControllerConfig{
-			Algorithm:         "equal",
 			Periode:           1000 * time.Millisecond,
 			WaitTimeForInputs: 100 * time.Millisecond,
 		},
