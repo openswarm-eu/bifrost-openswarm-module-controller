@@ -5,6 +5,7 @@ import "math"
 type sensor struct {
 	id           string
 	sensorLimit  float64
+	parent       *sensor
 	childSensors []*sensor
 	pvs          []component
 	chargers     []component
@@ -353,5 +354,20 @@ func (s *sensor) distributeMetDemandToChargers(demand float64) {
 				chargerCount--
 			}
 		}
+	}
+}
+
+func (s *sensor) reset() {
+	for _, childSensor := range s.childSensors {
+		childSensor.reset()
+	}
+
+	s.virtualComponent.possibleFlexibility = 0
+
+	for _, pv := range s.pvs {
+		pv.setPoint = 0
+	}
+	for _, charger := range s.chargers {
+		charger.setPoint = 0
 	}
 }

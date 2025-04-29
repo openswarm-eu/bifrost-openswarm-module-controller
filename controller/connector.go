@@ -63,7 +63,7 @@ func (c *connector) start(ctx context.Context) error {
 						log.Printf("Could not unmarshal incoming register message, %s", err)
 						continue
 					}
-					c.writeNodeToLog(msg.NodeId, msg.SensorId)
+					c.writeNodeToLog(msg)
 				}
 			case deregisterNode := <-deregisterNodeChannel:
 				if c.leader {
@@ -73,7 +73,7 @@ func (c *connector) start(ctx context.Context) error {
 						log.Printf("Could not unmarshal incoming deregister message, %s", err)
 						continue
 					}
-					c.removeNodeFromLog(msg.NodeId, msg.SensorId)
+					c.removeNodeFromLog(msg)
 				}
 			case v := <-leaderChannel:
 				if v {
@@ -86,17 +86,62 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
-				sensorId := string(stateChange.Value)
 				nodeId := strings.TrimPrefix(stateChange.Key, NODE_PREFIX)
 
 				if stateChange.Op == stateAPI.InputOpSet {
-					if _, ok := c.state.sensors[sensorId]; !ok {
-						c.state.sensors[sensorId] = &sensor{id: sensorId, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0)}
+					var msg node
+					if err := json.Unmarshal(stateChange.Value, &msg); err != nil {
+						log.Printf("Could not unmarshal incoming node state change message, %s", err)
+						continue
 					}
-					// TODO get info if charger or pv
-					c.state.sensors[sensorId].chargers = append(c.state.sensors[sensorId].chargers, component{})
+
+					if _, ok := c.state.sensors[msg.SensorId]; !ok {
+						c.state.sensors[msg.SensorId] = &sensor{id: msg.SensorId, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0)}
+					}
+
+					if msg.NodeType == common.PV_NODE_TPYE {
+						c.state.sensors[msg.SensorId].pvs = append(c.state.sensors[msg.SensorId].pvs, component{id: msg.Id, demand: 0, setPoint: 0})
+					} else if msg.NodeType == common.CHARGER_NODE_TYPE {
+						c.state.sensors[msg.SensorId].chargers = append(c.state.sensors[msg.SensorId].chargers, component{id: msg.Id, demand: 0, setPoint: 0})
+					}
 				} else {
-					//delete
+				out:
+					for _, sensor := range c.state.sensors {
+						found := false
+						for i, pv := range sensor.pvs {
+							if pv.id == nodeId {
+								sensor.pvs = append(sensor.pvs[:i], sensor.pvs[i+1:]...)
+								found = true
+								break
+							}
+						}
+
+						if !found {
+							for i, charger := range sensor.chargers {
+								if charger.id == nodeId {
+									sensor.chargers = append(sensor.chargers[:i], sensor.chargers[i+1:]...)
+									break
+								}
+							}
+						}
+
+						if len(sensor.pvs) != 0 || len(sensor.chargers) != 0 || len(sensor.childSensors) != 0 {
+							break out
+						}
+
+						delete(c.state.sensors, sensor.id)
+
+						if sensor.parent == nil {
+							break out
+						}
+
+						for i, child := range sensor.parent.childSensors {
+							if child == sensor {
+								sensor.parent.childSensors = append(sensor.parent.childSensors[:i], sensor.parent.childSensors[i+1:]...)
+								break out
+							}
+						}
+					}
 				}
 
 				if c.leader {
@@ -171,21 +216,22 @@ func (c *connector) getData() {
 	}()
 }
 
-func (c *connector) writeNodeToLog(nodeId string, sensorId string) error {
+func (c *connector) writeNodeToLog(registerMessage common.DdaRegisterMessage) error {
+	data, _ := json.Marshal(node{Id: registerMessage.NodeId, SensorId: registerMessage.SensorId, NodeType: registerMessage.NodeType})
+
 	input := stateAPI.Input{
 		Op:    stateAPI.InputOpSet,
-		Key:   NODE_PREFIX + nodeId,
-		Value: []byte(sensorId),
+		Key:   NODE_PREFIX + registerMessage.NodeId,
+		Value: data,
 	}
 
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
-func (c *connector) removeNodeFromLog(nodeId string, sensorId string) error {
+func (c *connector) removeNodeFromLog(registerMessage common.DdaRegisterMessage) error {
 	input := stateAPI.Input{
-		Op:    stateAPI.InputOpDelete,
-		Key:   NODE_PREFIX + nodeId,
-		Value: []byte(sensorId),
+		Op:  stateAPI.InputOpDelete,
+		Key: NODE_PREFIX + registerMessage.NodeId,
 	}
 
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
@@ -201,3 +247,9 @@ func (c *connector) sendChargingSetPoints() {
 }
 
 const NODE_PREFIX = "node_"
+
+type node struct {
+	Id       string
+	SensorId string
+	NodeType string
+}

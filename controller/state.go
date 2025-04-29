@@ -5,15 +5,11 @@ import (
 )
 
 type state struct {
-	pvProductionValues  []common.Value
-	chargerRequests     []common.Value
-	setPoints           []common.Value
-	sensors             map[string]*sensor
-	topology            map[string][]string //sensorId -> []chargerId/sensorId
-	limits              map[string]float64  //sensorId -> limit
-	utilizationProposal map[string]float64  //sensorId -> utilization
-
-	root *sensor
+	pvProductionValues []common.Value
+	chargerRequests    []common.Value
+	setPoints          []common.Value
+	sensors            map[string]*sensor
+	rootSensor         *sensor
 }
 
 type component struct {

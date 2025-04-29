@@ -74,8 +74,8 @@ func (c *Connector) Close() {
 	c.Dda.Close()
 }
 
-func (c *Connector) RegisterNode(nodeId string, sendorId string) error {
-	registerMessage := common.DdaRegisterMessage{NodeId: nodeId, SensorId: sendorId, Timestamp: time.Now().Unix()}
+func (c *Connector) RegisterNode(nodeId string, sendorId string, nodeType string) error {
+	registerMessage := common.DdaRegisterMessage{NodeId: nodeId, SensorId: sendorId, NodeType: nodeType, Timestamp: time.Now().Unix()}
 	data, err := json.Marshal(registerMessage)
 
 	if err != nil {
@@ -87,8 +87,8 @@ func (c *Connector) RegisterNode(nodeId string, sendorId string) error {
 	return c.Dda.PublishEvent(event)
 }
 
-func (c *Connector) DeregisterNode(nodeId string, sendorId string) error {
-	registerMessage := common.DdaRegisterMessage{NodeId: nodeId, SensorId: sendorId, Timestamp: time.Now().Unix()}
+func (c *Connector) DeregisterNode(nodeId string, sendorId string, nodeType string) error {
+	registerMessage := common.DdaRegisterMessage{NodeId: nodeId, SensorId: sendorId, NodeType: nodeType, Timestamp: time.Now().Unix()}
 	data, err := json.Marshal(registerMessage)
 
 	if err != nil {

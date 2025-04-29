@@ -110,16 +110,3 @@ func (l *logic) calculateChargerPower() {
 		l.state.setPoints[i] = common.Value{Message: common.Message{Id: charger.Id, Timestamp: time.Now()}, Value: chargingSetPoint}
 	}
 }
-
-func (s *sensor) reset() {
-	for _, childSensor := range s.childSensors {
-		childSensor.reset()
-	}
-	s.virtualComponent.possibleFlexibility = 0
-	for _, pv := range s.pvs {
-		pv.setPoint = 0
-	}
-	for _, charger := range s.chargers {
-		charger.setPoint = 0
-	}
-}

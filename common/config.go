@@ -38,7 +38,7 @@ func NewConfig() *Config {
 		Url:               "",
 		Name:              "DDA",
 		Id:                uuid.NewString(),
-		SensorId:          "",
+		SensorId:          "sensor1",
 		EnergyCommunityId: "energyCommunity",
 		Leader: LeaderConfig{
 			Enabled:              false,

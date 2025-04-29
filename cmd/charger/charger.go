@@ -150,7 +150,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Conf
 	for {
 		log.Println("charger - trying to register node")
 
-		err = ddaConnector.RegisterNode(cfg.Id, cfg.SensorId)
+		err = ddaConnector.RegisterNode(cfg.Id, cfg.SensorId, common.CHARGER_NODE_TYPE)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -180,7 +180,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Co
 	for {
 		log.Println("charger - trying to deregister node")
 
-		err = ddaConnector.DeregisterNode(cfg.Id, cfg.SensorId)
+		err = ddaConnector.DeregisterNode(cfg.Id, cfg.SensorId, common.CHARGER_NODE_TYPE)
 		if err != nil {
 			log.Fatalln(err)
 		}
