@@ -90,24 +90,13 @@ func (c *connector) start(ctx context.Context) error {
 				nodeId := strings.TrimPrefix(stateChange.Key, NODE_PREFIX)
 
 				if stateChange.Op == stateAPI.InputOpSet {
-					if _, ok := c.state.topology[sensorId]; !ok {
-						c.state.topology[sensorId] = make([]string, 1)
+					if _, ok := c.state.sensors[sensorId]; !ok {
+						c.state.sensors[sensorId] = &sensor{id: sensorId, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0)}
 					}
-					c.state.topology[sensorId] = append(c.state.topology[sensorId], nodeId)
+					// TODO get info if charger or pv
+					c.state.sensors[sensorId].chargers = append(c.state.sensors[sensorId].chargers, component{})
 				} else {
-					if _, ok := c.state.topology[sensorId]; !ok {
-						continue
-					}
-					for i, id := range c.state.topology[sensorId] {
-						if id == nodeId {
-							c.state.topology[sensorId] = append(c.state.topology[sensorId][:i], c.state.topology[sensorId][i+1:]...)
-							break
-						}
-					}
-
-					if len(c.state.topology[sensorId]) == 0 {
-						delete(c.state.topology, sensorId)
-					}
+					//delete
 				}
 
 				if c.leader {
@@ -128,30 +117,30 @@ func (c *connector) getData() {
 	go func() {
 		ctx, cancel := context.WithCancel(c.ctx)
 
-		productionResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.PRODUCTION_ACTION, Id: uuid.NewString(), Source: "controller"})
+		pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.PRODUCTION_ACTION, Id: uuid.NewString(), Source: "controller"})
 		if err != nil {
-			log.Printf("controller - could not get PV production - %s", err)
+			log.Printf("controller - could not get PV response - %s", err)
 			cancel()
 			return
 		}
 
 		chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.CHARGER_ACTION, Id: uuid.NewString(), Source: "controller"})
 		if err != nil {
-			log.Printf("controller - could not get available chargers - %s", err)
+			log.Printf("controller - could not get charger response - %s", err)
 			cancel()
 			return
 		}
 
 		c.state.pvProductionValues = make([]common.Value, 0)
-		c.state.chargerIds = make([]common.Message, 0)
+		c.state.chargerRequests = make([]common.Value, 0)
 
 		// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
 		startTime := time.Now().Add(-1 * time.Second)
 		go func() {
-			for productionResponse := range productionResponses {
+			for pvResponse := range pvResponses {
 				var value common.Value
-				if err := json.Unmarshal(productionResponse.Data, &value); err != nil {
-					log.Printf("Could not unmarshal incoming charger message, %s", err)
+				if err := json.Unmarshal(pvResponse.Data, &value); err != nil {
+					log.Printf("Could not unmarshal incoming PV message, %s", err)
 					continue
 				}
 
@@ -163,14 +152,14 @@ func (c *connector) getData() {
 
 		go func() {
 			for chargerResponse := range chargerResponses {
-				var msg common.Message
+				var msg common.Value
 				if err := json.Unmarshal(chargerResponse.Data, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming charger message, %s", err)
 					continue
 				}
 
 				if msg.Timestamp.After(startTime) {
-					c.state.chargerIds = append(c.state.chargerIds, msg)
+					c.state.chargerRequests = append(c.state.chargerRequests, msg)
 				}
 			}
 		}()

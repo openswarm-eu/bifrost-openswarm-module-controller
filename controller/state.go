@@ -1,10 +1,41 @@
 package controller
 
-import "code.siemens.com/energy-community-controller/common"
+import (
+	"code.siemens.com/energy-community-controller/common"
+)
 
 type state struct {
-	pvProductionValues []common.Value
-	chargerIds         []common.Message
-	setPoints          []common.Value
-	topology           map[string][]string
+	pvProductionValues  []common.Value
+	chargerRequests     []common.Value
+	setPoints           []common.Value
+	sensors             map[string]*sensor
+	topology            map[string][]string //sensorId -> []chargerId/sensorId
+	limits              map[string]float64  //sensorId -> limit
+	utilizationProposal map[string]float64  //sensorId -> utilization
+
+	root *sensor
+}
+
+type component struct {
+	id string
+
+	demand   float64
+	setPoint float64
+}
+
+type virtualComponent struct {
+	possibleFlexibility float64
+}
+
+func (v *virtualComponent) getFlexibility() float64 {
+	return v.possibleFlexibility
+}
+
+// positive flexility = charger, negative flexibility = pv
+func (v *virtualComponent) consumeFlexibility(flexibility float64) {
+	v.possibleFlexibility -= flexibility
+}
+
+func (v *virtualComponent) reset() {
+	v.possibleFlexibility = 0
 }

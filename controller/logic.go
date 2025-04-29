@@ -89,7 +89,7 @@ func (l *logic) newRound() {
 
 func (l *logic) calculateChargerPower() {
 	log.Println("controller -", l.state.pvProductionValues)
-	log.Println("controller -", l.state.chargerIds)
+	log.Println("controller -", l.state.chargerRequests)
 
 	var sumPvProduction float64
 	for _, productionValue := range l.state.pvProductionValues {
@@ -97,16 +97,29 @@ func (l *logic) calculateChargerPower() {
 	}
 
 	var chargingSetPoint float64
-	numChargers := len(l.state.chargerIds)
+	numChargers := len(l.state.chargerRequests)
 	if numChargers > 0 {
-		chargingSetPoint = sumPvProduction / float64(len(l.state.chargerIds))
+		chargingSetPoint = sumPvProduction / float64(len(l.state.chargerRequests))
 	} else {
 		chargingSetPoint = 0
 	}
 
-	l.state.setPoints = make([]common.Value, len(l.state.chargerIds))
+	l.state.setPoints = make([]common.Value, len(l.state.chargerRequests))
 
-	for i, charger := range l.state.chargerIds {
+	for i, charger := range l.state.chargerRequests {
 		l.state.setPoints[i] = common.Value{Message: common.Message{Id: charger.Id, Timestamp: time.Now()}, Value: chargingSetPoint}
+	}
+}
+
+func (s *sensor) reset() {
+	for _, childSensor := range s.childSensors {
+		childSensor.reset()
+	}
+	s.virtualComponent.possibleFlexibility = 0
+	for _, pv := range s.pvs {
+		pv.setPoint = 0
+	}
+	for _, charger := range s.chargers {
+		charger.setPoint = 0
 	}
 }

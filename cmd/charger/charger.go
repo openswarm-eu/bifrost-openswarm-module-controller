@@ -89,7 +89,7 @@ func main() {
 
 	register(ctx, ddaConnector, cfg)
 
-	getChargerChannel, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.CHARGER_ACTION})
+	chargerRequestChannel, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.CHARGER_ACTION})
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -110,10 +110,10 @@ func main() {
 
 	for {
 		select {
-		case getChargerRequest := <-getChargerChannel:
-			msg := common.Message{Id: cfg.Id, Timestamp: time.Now()}
+		case chargerRequest := <-chargerRequestChannel:
+			msg := common.Value{Message: common.Message{Id: cfg.Id, Timestamp: time.Now()}, Value: 0}
 			data, _ := json.Marshal(msg)
-			getChargerRequest.Callback(api.ActionResult{Data: data})
+			chargerRequest.Callback(api.ActionResult{Data: data})
 		case chargingSetPoint := <-chargingSetPointChannel:
 			var value common.Value
 			if err := json.Unmarshal(chargingSetPoint.Data, &value); err != nil {
