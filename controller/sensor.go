@@ -7,8 +7,8 @@ type sensor struct {
 	sensorLimit  float64
 	parent       *sensor
 	childSensors []*sensor
-	pvs          []component
-	chargers     []component
+	pvs          []*component
+	chargers     []*component
 
 	virtualComponent virtualComponent
 }

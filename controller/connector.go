@@ -96,13 +96,13 @@ func (c *connector) start(ctx context.Context) error {
 					}
 
 					if _, ok := c.state.sensors[msg.SensorId]; !ok {
-						c.state.sensors[msg.SensorId] = &sensor{id: msg.SensorId, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0)}
+						c.state.sensors[msg.SensorId] = &sensor{id: msg.SensorId, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
 					}
 
 					if msg.NodeType == common.PV_NODE_TPYE {
-						c.state.sensors[msg.SensorId].pvs = append(c.state.sensors[msg.SensorId].pvs, component{id: msg.Id, demand: 0, setPoint: 0})
+						c.state.sensors[msg.SensorId].pvs = append(c.state.sensors[msg.SensorId].pvs, &component{id: msg.Id, demand: 0, setPoint: 0})
 					} else if msg.NodeType == common.CHARGER_NODE_TYPE {
-						c.state.sensors[msg.SensorId].chargers = append(c.state.sensors[msg.SensorId].chargers, component{id: msg.Id, demand: 0, setPoint: 0})
+						c.state.sensors[msg.SensorId].chargers = append(c.state.sensors[msg.SensorId].chargers, &component{id: msg.Id, demand: 0, setPoint: 0})
 					}
 				} else {
 				out:

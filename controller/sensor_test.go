@@ -8,23 +8,23 @@ import (
 const tolerance = .00001
 
 func TestConsumptionOutgoingLimit(t *testing.T) {
-	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor1 := sensor{id: "sensor1", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor2 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor3 := sensor{id: "sensor3", sensorLimit: 2, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor1 := sensor{id: "sensor1", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor2 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor3 := sensor{id: "sensor3", sensorLimit: 2, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor1)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor3)
 
-	sensor1.chargers = append(sensor1.chargers, component{id: "charger1", demand: 10, setPoint: 0})
-	sensor1.chargers = append(sensor1.chargers, component{id: "charger2", demand: 7, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger1", demand: 10, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger2", demand: 7, setPoint: 0})
 
-	sensor2.chargers = append(sensor2.chargers, component{id: "charger3", demand: 2, setPoint: 0})
-	sensor2.pvs = append(sensor2.pvs, component{id: "pv1", demand: 1, setPoint: 0})
+	sensor2.chargers = append(sensor2.chargers, &component{id: "charger3", demand: 2, setPoint: 0})
+	sensor2.pvs = append(sensor2.pvs, &component{id: "pv1", demand: 1, setPoint: 0})
 
-	sensor3.chargers = append(sensor3.chargers, component{id: "charger4", demand: 4, setPoint: 0})
-	sensor3.pvs = append(sensor3.pvs, component{id: "pv2", demand: 5, setPoint: 0})
-	sensor3.pvs = append(sensor3.pvs, component{id: "pv3", demand: 5, setPoint: 0})
+	sensor3.chargers = append(sensor3.chargers, &component{id: "charger4", demand: 4, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv2", demand: 5, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv3", demand: 5, setPoint: 0})
 
 	root.setSetPoints()
 
@@ -51,7 +51,7 @@ func TestConsumptionOutgoingLimit(t *testing.T) {
 	}
 
 	// flipped order of sensors
-	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor3)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor1)
@@ -83,23 +83,23 @@ func TestConsumptionOutgoingLimit(t *testing.T) {
 }
 
 func TestGlobalOverConsumptionRequestedPowerLimit(t *testing.T) {
-	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor1 := sensor{id: "sensor1", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor2 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor3 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor1 := sensor{id: "sensor1", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor2 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor3 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor1)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor3)
 
-	sensor1.chargers = append(sensor1.chargers, component{id: "charger1", demand: 10, setPoint: 0})
-	sensor1.chargers = append(sensor1.chargers, component{id: "charger2", demand: 0.5, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger1", demand: 10, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger2", demand: 0.5, setPoint: 0})
 
-	sensor2.chargers = append(sensor2.chargers, component{id: "charger3", demand: 5, setPoint: 0})
-	sensor2.pvs = append(sensor2.pvs, component{id: "pv1", demand: 1, setPoint: 0})
+	sensor2.chargers = append(sensor2.chargers, &component{id: "charger3", demand: 5, setPoint: 0})
+	sensor2.pvs = append(sensor2.pvs, &component{id: "pv1", demand: 1, setPoint: 0})
 
-	sensor3.chargers = append(sensor3.chargers, component{id: "charger4", demand: 4, setPoint: 0})
-	sensor3.pvs = append(sensor3.pvs, component{id: "pv2", demand: 4, setPoint: 0})
-	sensor3.pvs = append(sensor3.pvs, component{id: "pv3", demand: 3, setPoint: 0})
+	sensor3.chargers = append(sensor3.chargers, &component{id: "charger4", demand: 4, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv2", demand: 4, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv3", demand: 3, setPoint: 0})
 
 	root.setSetPoints()
 
@@ -126,7 +126,7 @@ func TestGlobalOverConsumptionRequestedPowerLimit(t *testing.T) {
 	}
 
 	// flipped order of sensors
-	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor3)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor1)
@@ -158,23 +158,23 @@ func TestGlobalOverConsumptionRequestedPowerLimit(t *testing.T) {
 }
 
 func TestGlobalOverConsumptionIngoingLimit(t *testing.T) {
-	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor1 := sensor{id: "sensor1", sensorLimit: 1, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor2 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor3 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor1 := sensor{id: "sensor1", sensorLimit: 1, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor2 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor3 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor1)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor3)
 
-	sensor1.chargers = append(sensor1.chargers, component{id: "charger1", demand: 10, setPoint: 0})
-	sensor1.chargers = append(sensor1.chargers, component{id: "charger2", demand: 7, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger1", demand: 10, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger2", demand: 7, setPoint: 0})
 
-	sensor2.chargers = append(sensor2.chargers, component{id: "charger3", demand: 2, setPoint: 0})
-	sensor2.pvs = append(sensor2.pvs, component{id: "pv1", demand: 1, setPoint: 0})
+	sensor2.chargers = append(sensor2.chargers, &component{id: "charger3", demand: 2, setPoint: 0})
+	sensor2.pvs = append(sensor2.pvs, &component{id: "pv1", demand: 1, setPoint: 0})
 
-	sensor3.chargers = append(sensor3.chargers, component{id: "charger4", demand: 4, setPoint: 0})
-	sensor3.pvs = append(sensor3.pvs, component{id: "pv2", demand: 2, setPoint: 0})
-	sensor3.pvs = append(sensor3.pvs, component{id: "pv3", demand: 3, setPoint: 0})
+	sensor3.chargers = append(sensor3.chargers, &component{id: "charger4", demand: 4, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv2", demand: 2, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv3", demand: 3, setPoint: 0})
 
 	root.setSetPoints()
 
@@ -201,7 +201,7 @@ func TestGlobalOverConsumptionIngoingLimit(t *testing.T) {
 	}
 
 	// flipped order of sensors
-	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor1)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor3)
@@ -233,23 +233,23 @@ func TestGlobalOverConsumptionIngoingLimit(t *testing.T) {
 }
 
 func TestGlobalOverProductionIngoingLimit(t *testing.T) {
-	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor1 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor2 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor3 := sensor{id: "sensor4", sensorLimit: 2, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor1 := sensor{id: "sensor2", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor2 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor3 := sensor{id: "sensor4", sensorLimit: 2, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor1)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor3)
 
-	sensor1.chargers = append(sensor1.chargers, component{id: "charger1", demand: 2, setPoint: 0})
-	sensor1.pvs = append(sensor1.pvs, component{id: "pv1", demand: 5, setPoint: 0})
-	sensor1.pvs = append(sensor1.pvs, component{id: "pv2", demand: 5, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger1", demand: 2, setPoint: 0})
+	sensor1.pvs = append(sensor1.pvs, &component{id: "pv1", demand: 5, setPoint: 0})
+	sensor1.pvs = append(sensor1.pvs, &component{id: "pv2", demand: 5, setPoint: 0})
 
-	sensor2.chargers = append(sensor2.chargers, component{id: "charger2", demand: 2, setPoint: 0})
-	sensor2.pvs = append(sensor2.pvs, component{id: "pv3", demand: 1, setPoint: 0})
+	sensor2.chargers = append(sensor2.chargers, &component{id: "charger2", demand: 2, setPoint: 0})
+	sensor2.pvs = append(sensor2.pvs, &component{id: "pv3", demand: 1, setPoint: 0})
 
-	sensor3.chargers = append(sensor3.chargers, component{id: "charger3", demand: 4, setPoint: 0})
-	sensor3.pvs = append(sensor3.pvs, component{id: "pv4", demand: 1, setPoint: 0})
+	sensor3.chargers = append(sensor3.chargers, &component{id: "charger3", demand: 4, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv4", demand: 1, setPoint: 0})
 
 	root.setSetPoints()
 
@@ -276,7 +276,7 @@ func TestGlobalOverProductionIngoingLimit(t *testing.T) {
 	}
 
 	// flipped order of sensors
-	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root = sensor{sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor3)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor1)
@@ -309,22 +309,22 @@ func TestGlobalOverProductionIngoingLimit(t *testing.T) {
 }
 
 func TestEqualGlobalProductionConsumption(t *testing.T) {
-	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor1 := sensor{id: "sensor2", sensorLimit: 4, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor2 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
-	sensor3 := sensor{id: "sensor4", sensorLimit: 4, childSensors: make([]*sensor, 0), pvs: make([]component, 0), chargers: make([]component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	root := sensor{id: "root", sensorLimit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor1 := sensor{id: "sensor2", sensorLimit: 4, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor2 := sensor{id: "sensor3", sensorLimit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
+	sensor3 := sensor{id: "sensor4", sensorLimit: 4, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0), virtualComponent: virtualComponent{possibleFlexibility: 0}}
 	root.childSensors = append(root.childSensors, &sensor1)
 	root.childSensors = append(root.childSensors, &sensor2)
 	root.childSensors = append(root.childSensors, &sensor3)
 
-	sensor1.pvs = append(sensor1.pvs, component{id: "pv1", demand: 5, setPoint: 0})
-	sensor1.pvs = append(sensor1.pvs, component{id: "pv2", demand: 5, setPoint: 0})
+	sensor1.pvs = append(sensor1.pvs, &component{id: "pv1", demand: 5, setPoint: 0})
+	sensor1.pvs = append(sensor1.pvs, &component{id: "pv2", demand: 5, setPoint: 0})
 
-	sensor2.chargers = append(sensor2.chargers, component{id: "charger1", demand: 1, setPoint: 0})
-	sensor2.pvs = append(sensor2.pvs, component{id: "pv3", demand: 1, setPoint: 0})
+	sensor2.chargers = append(sensor2.chargers, &component{id: "charger1", demand: 1, setPoint: 0})
+	sensor2.pvs = append(sensor2.pvs, &component{id: "pv3", demand: 1, setPoint: 0})
 
-	sensor3.chargers = append(sensor3.chargers, component{id: "charger2", demand: 5, setPoint: 0})
-	sensor3.chargers = append(sensor3.chargers, component{id: "charger3", demand: 5, setPoint: 0})
+	sensor3.chargers = append(sensor3.chargers, &component{id: "charger2", demand: 5, setPoint: 0})
+	sensor3.chargers = append(sensor3.chargers, &component{id: "charger3", demand: 5, setPoint: 0})
 
 	root.setSetPoints()
 
