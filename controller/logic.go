@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"time"
 
@@ -109,4 +110,17 @@ func (l *logic) calculateChargerPower() {
 	for i, charger := range l.state.chargerRequests {
 		l.state.setPoints[i] = common.Value{Message: common.Message{Id: charger.Id, Timestamp: time.Now()}, Value: chargingSetPoint}
 	}
+}
+
+func (l *logic) calculateFlowProposal() {
+	for _, sensor := range l.state.sensors {
+		sensor.sensorLimit = math.MaxFloat64
+	}
+
+	l.calculateSetPoints()
+}
+
+func (l *logic) calculateSetPoints() {
+	l.state.rootSensor.reset()
+	l.state.rootSensor.setSetPoints()
 }
