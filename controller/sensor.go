@@ -17,7 +17,7 @@ type sensor struct {
 	chargers          []*component
 	numGlobalChargers int
 
-	doSpecialStuff bool
+	ignoreDuringDistribution bool
 }
 
 func (s *sensor) setSetPoints() {
@@ -54,7 +54,7 @@ func (s *sensor) iterateThroughChildren() {
 					pvProduction += -childSensor.flow
 				} else {
 					// maximum pv production is limited by sensor limit
-					childSensor.doSpecialStuff = true
+					childSensor.ignoreDuringDistribution = true
 					childSensor.flow = childSensor.maximumFlow
 					pvProduction += -childSensor.flow
 				}
@@ -72,7 +72,7 @@ func (s *sensor) iterateThroughChildren() {
 			}
 		}
 
-		if s.doSpecialStuff {
+		if s.ignoreDuringDistribution {
 			pvProduction += s.flow
 		}
 
@@ -91,7 +91,7 @@ func (s *sensor) iterateThroughChildren() {
 					chargerConsumption += childSensor.flow
 				} else {
 					// maximum charger consumption is limited by sensor limit
-					childSensor.doSpecialStuff = true
+					childSensor.ignoreDuringDistribution = true
 					childSensor.flow = childSensor.maximumFlow
 					chargerConsumption += childSensor.flow
 				}
@@ -109,7 +109,7 @@ func (s *sensor) iterateThroughChildren() {
 			}
 		}
 
-		if s.doSpecialStuff {
+		if s.ignoreDuringDistribution {
 			chargerConsumption += -s.flow
 		}
 
@@ -246,7 +246,7 @@ func (s *sensor) getNumberOfGlobalChargers() int {
 func (s *sensor) updateNumberOfGlobalChargers() int {
 	s.numGlobalChargers = 0
 
-	if s.limit-s.flow == 0 || s.doSpecialStuff {
+	if s.limit-s.flow == 0 || s.ignoreDuringDistribution {
 		return 0
 	}
 
@@ -279,7 +279,7 @@ func (s *sensor) getNumberOfGlobalPVs() int {
 func (s *sensor) updateNumberOfGlobalPVs() int {
 	s.numGlobalPVs = 0
 
-	if s.limit+s.flow == 0 || s.doSpecialStuff {
+	if s.limit+s.flow == 0 || s.ignoreDuringDistribution {
 		return 0
 	}
 
@@ -327,7 +327,7 @@ func (s *sensor) setChargerSetPointsOverconsumption(chargerSetPoint float64) flo
 func (s *sensor) setChargerSetPointsOverproduction(chargerSetPoint float64) float64 {
 	usedProduction := 0.0
 
-	if s.doSpecialStuff {
+	if s.ignoreDuringDistribution {
 		return 0
 	}
 
@@ -379,7 +379,7 @@ func (s *sensor) setPVSetPointsOverproduction(pvSetPoint float64) float64 {
 func (s *sensor) setPVSetPointsOverconsumption(pvSetPoint float64) float64 {
 	usedConsumption := 0.0
 
-	if s.doSpecialStuff {
+	if s.ignoreDuringDistribution {
 		return 0
 	}
 
@@ -407,7 +407,7 @@ func (s *sensor) reset() {
 
 	s.flow = 0
 	s.maximumFlow = 0
-	s.doSpecialStuff = false
+	s.ignoreDuringDistribution = false
 
 	for _, pv := range s.pvs {
 		pv.setPoint = 0
