@@ -18,20 +18,3 @@ type component struct {
 	demand   float64
 	setPoint float64
 }
-
-type virtualComponent struct {
-	possibleFlexibility float64
-}
-
-func (v *virtualComponent) getFlexibility() float64 {
-	return v.possibleFlexibility
-}
-
-// positive flexility = charger, negative flexibility = pv
-func (v *virtualComponent) consumeFlexibility(flexibility float64) {
-	v.possibleFlexibility -= flexibility
-}
-
-func (v *virtualComponent) reset() {
-	v.possibleFlexibility = 0
-}

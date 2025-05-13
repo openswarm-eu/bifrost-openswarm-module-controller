@@ -114,7 +114,7 @@ func (l *logic) calculateChargerPower() {
 
 func (l *logic) calculateFlowProposal() {
 	for _, sensor := range l.state.sensors {
-		sensor.sensorLimit = math.MaxFloat64
+		sensor.limit = math.MaxFloat64
 	}
 
 	l.calculateSetPoints()

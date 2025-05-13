@@ -105,7 +105,6 @@ func (c *connector) start(ctx context.Context) error {
 						c.state.sensors[msg.SensorId].chargers = append(c.state.sensors[msg.SensorId].chargers, &component{id: msg.Id, demand: 0, setPoint: 0})
 					}
 				} else {
-				out:
 					for _, sensor := range c.state.sensors {
 						found := false
 						for i, pv := range sensor.pvs {
@@ -125,21 +124,8 @@ func (c *connector) start(ctx context.Context) error {
 							}
 						}
 
-						if len(sensor.pvs) != 0 || len(sensor.chargers) != 0 || len(sensor.childSensors) != 0 {
-							break out
-						}
-
-						delete(c.state.sensors, sensor.id)
-
-						if sensor.parent == nil {
-							break out
-						}
-
-						for i, child := range sensor.parent.childSensors {
-							if child == sensor {
-								sensor.parent.childSensors = append(sensor.parent.childSensors[:i], sensor.parent.childSensors[i+1:]...)
-								break out
-							}
+						if found && len(sensor.pvs) != 0 && len(sensor.chargers) != 0 && len(sensor.childSensors) != 0 {
+							delete(c.state.sensors, sensor.id)
 						}
 					}
 				}
