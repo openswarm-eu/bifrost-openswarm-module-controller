@@ -27,9 +27,9 @@ const PV_NODE_TPYE = "pv"
 const REGISTER_EVENT = "com.siemens.openswarm.register"
 const DEREGISTER_EVENT = "com.siemens.openswarm.deregister"
 const REGISTER_RESPONSE_EVENT = "com.siemens.openswarm.registerresponse"
-const CHARGER_ACTION = "com.siemens.openswarm.charger"
-const PRODUCTION_ACTION = "com.siemens.openswarm.production"
-const CHARGING_SET_POINT = "com.siemens.openswarm.chargersetpoint"
+const GET_CHARGER_DEMAND_ACTION = "com.siemens.openswarm.chargerDemand"
+const GET_PV_DEMAND_ACTION = "com.siemens.openswarm.pvDemand"
+const SET_POINT = "com.siemens.openswarm.setpoint"
 
 type DdaRegisterMessage struct {
 	NodeId    string

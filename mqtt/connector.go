@@ -14,11 +14,11 @@ import (
 )
 
 type Connector struct {
-	config              *common.Config
-	cliCfg              autopaho.ClientConfig
-	mqttConnection      *autopaho.ConnectionManager
-	router              paho.Router
-	pvProductionChannel chan float64
+	config         *common.Config
+	cliCfg         autopaho.ClientConfig
+	mqttConnection *autopaho.ConnectionManager
+	router         paho.Router
+	demandChannel  chan float64
 }
 
 func NewConnector(config *common.Config) (*Connector, error) {
@@ -67,53 +67,53 @@ func (c *Connector) Open(ctx context.Context) error {
 }
 
 func (c *Connector) Close() {
-	if c.pvProductionChannel != nil {
-		close(c.pvProductionChannel)
+	if c.demandChannel != nil {
+		close(c.demandChannel)
 	}
 	c.mqttConnection.Disconnect(context.Background())
 }
 
-func (c *Connector) PublishChargingSetPoint(ctx context.Context, chargingSetPoint float64) error {
-	chargingSetPointMessage := chargingSetPointMessage{ChargingSetPoint: chargingSetPoint}
-	payload, _ := json.Marshal(chargingSetPointMessage)
+func (c *Connector) PublishSetPoint(ctx context.Context, setPoint float64) error {
+	setPointMessage := setPointMessage{SetPoint: setPoint}
+	payload, _ := json.Marshal(setPointMessage)
 
 	_, err := c.mqttConnection.Publish(ctx, &paho.Publish{
 		QoS:     1,
-		Topic:   fmt.Sprintf("%s/%s", c.config.Id, charging_set_point_topic),
+		Topic:   fmt.Sprintf("%s/%s", c.config.Id, set_point_topic),
 		Payload: payload,
 	})
 
 	return err
 }
 
-func (c *Connector) SubscribeToPvProduction(ctx context.Context) (<-chan float64, error) {
-	c.pvProductionChannel = make(chan float64)
-	topic := fmt.Sprintf("%s/%s", c.config.Id, production_topic)
+func (c *Connector) SubscribeToDemands(ctx context.Context) (<-chan float64, error) {
+	c.demandChannel = make(chan float64)
+	topic := fmt.Sprintf("%s/%s", c.config.Id, demand_topic)
 
 	c.router.RegisterHandler(topic, func(p *paho.Publish) {
-		var msg pvProductionMessage
+		var msg demandMessage
 		if err := json.Unmarshal(p.Payload, &msg); err != nil {
-			log.Printf("Could not unmarshal incomming pv production message, %s", err)
+			log.Printf("Could not unmarshal incomming demand message, %s", err)
 			return
 		}
-		c.pvProductionChannel <- msg.Production
+		c.demandChannel <- msg.Demand
 	})
 
 	if _, err := c.mqttConnection.Subscribe(ctx, &paho.Subscribe{Subscriptions: []paho.SubscribeOptions{{Topic: topic, QoS: 1}}}); err != nil {
 		return nil, err
 	}
 
-	return c.pvProductionChannel, nil
+	return c.demandChannel, nil
 }
 
-const production_topic = "production"
+const demand_topic = "demand"
 
-type pvProductionMessage struct {
-	Production float64 `json:"production"`
+type demandMessage struct {
+	Demand float64 `json:"demand"`
 }
 
-const charging_set_point_topic = "chargingSetPoint"
+const set_point_topic = "setPoint"
 
-type chargingSetPointMessage struct {
-	ChargingSetPoint float64 `json:"chargingSetPoint"`
+type setPointMessage struct {
+	SetPoint float64 `json:"setPoint"`
 }

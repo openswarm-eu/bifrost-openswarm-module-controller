@@ -145,25 +145,29 @@ func (c *connector) leaderCh(ctx context.Context) <-chan bool {
 }
 
 func (c *connector) getData() {
+	for _, pv := range c.state.pvs {
+		pv.demand = 0
+	}
+	for _, charger := range c.state.chargers {
+		charger.demand = 0
+	}
+
 	go func() {
 		ctx, cancel := context.WithCancel(c.ctx)
 
-		pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.PRODUCTION_ACTION, Id: uuid.NewString(), Source: "controller"})
+		pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_PV_DEMAND_ACTION, Id: uuid.NewString(), Source: "controller"})
 		if err != nil {
 			log.Printf("controller - could not get PV response - %s", err)
 			cancel()
 			return
 		}
 
-		chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.CHARGER_ACTION, Id: uuid.NewString(), Source: "controller"})
+		chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_CHARGER_DEMAND_ACTION, Id: uuid.NewString(), Source: "controller"})
 		if err != nil {
 			log.Printf("controller - could not get charger response - %s", err)
 			cancel()
 			return
 		}
-
-		c.state.pvProductionValues = make([]common.Value, 0)
-		c.state.chargerRequests = make([]common.Value, 0)
 
 		// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
 		startTime := time.Now().Add(-1 * time.Second)
@@ -176,21 +180,25 @@ func (c *connector) getData() {
 				}
 
 				if value.Timestamp.After(startTime) {
-					c.state.pvProductionValues = append(c.state.pvProductionValues, value)
+					if pv, ok := c.state.pvs[value.Id]; ok {
+						pv.demand = value.Value
+					}
 				}
 			}
 		}()
 
 		go func() {
 			for chargerResponse := range chargerResponses {
-				var msg common.Value
-				if err := json.Unmarshal(chargerResponse.Data, &msg); err != nil {
+				var value common.Value
+				if err := json.Unmarshal(chargerResponse.Data, &value); err != nil {
 					log.Printf("Could not unmarshal incoming charger message, %s", err)
 					continue
 				}
 
-				if msg.Timestamp.After(startTime) {
-					c.state.chargerRequests = append(c.state.chargerRequests, msg)
+				if value.Timestamp.After(startTime) {
+					if charger, ok := c.state.pvs[value.Id]; ok {
+						charger.demand = value.Value
+					}
 				}
 			}
 		}()
@@ -223,11 +231,20 @@ func (c *connector) removeNodeFromLog(registerMessage common.DdaRegisterMessage)
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
-func (c *connector) sendChargingSetPoints() {
-	for _, setPoint := range c.state.setPoints {
-		data, _ := json.Marshal(setPoint)
-		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.CHARGING_SET_POINT, Source: "ddaConsistencyProvider", Id: uuid.NewString(), Data: data}); err != nil {
+func (c *connector) sendSetPoints() {
+	for _, charger := range c.state.chargers {
+		msg := common.Value{Message: common.Message{Id: charger.id, Timestamp: time.Now()}, Value: charger.setPoint}
+		data, _ := json.Marshal(msg)
+		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.SET_POINT, Source: "ddaConsistencyProvider", Id: uuid.NewString(), Data: data}); err != nil {
 			log.Printf("could not send charging set point - %s", err)
+		}
+	}
+
+	for _, pv := range c.state.pvs {
+		msg := common.Value{Message: common.Message{Id: pv.id, Timestamp: time.Now()}, Value: pv.setPoint}
+		data, _ := json.Marshal(msg)
+		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.SET_POINT, Source: "ddaConsistencyProvider", Id: uuid.NewString(), Data: data}); err != nil {
+			log.Printf("could not send pv set point - %s", err)
 		}
 	}
 }

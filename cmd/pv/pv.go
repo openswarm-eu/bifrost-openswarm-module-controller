@@ -42,7 +42,7 @@ func main() {
 
 	var ddaConnector *dda.Connector
 	var mqttConnector *mqtt.Connector
-	var pvProduction float64
+	var demand float64
 	var err error
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -90,28 +90,59 @@ func main() {
 
 	register(ctx, ddaConnector, cfg)
 
-	getProductionChannel, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.PRODUCTION_ACTION})
+	demandChannel, err := mqttConnector.SubscribeToDemands(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	productionChannel, err := mqttConnector.SubscribeToPvProduction(ctx)
+	pvDemandRequests, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.GET_PV_DEMAND_ACTION})
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	setPointChannel, err := ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.SET_POINT})
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	setPointMonitorDuration := cfg.Controller.Periode + cfg.Charger.MaximumAcceptableSetPointOffset
+	var setPointMonitor common.Timer
+	setPointMonitor.Start(setPointMonitorDuration, func() {
+		log.Println("pv - set point timeout")
+		mqttConnector.PublishSetPoint(ctx, 0)
+	})
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 
 	for {
 		select {
-		case newProduction := <-productionChannel:
-			log.Printf("Got new production value: %f", newProduction)
-			pvProduction = newProduction
-		case getProductionRequest := <-getProductionChannel:
-			msg := common.Value{Message: common.Message{Id: cfg.Id, Timestamp: time.Now()}, Value: pvProduction}
+		case newDemand := <-demandChannel:
+			log.Printf("pv - got new production value: %f", newDemand)
+			demand = newDemand
+		case pvDemandRequest := <-pvDemandRequests:
+			msg := common.Value{Message: common.Message{Id: id, Timestamp: time.Now()}, Value: demand}
 			data, _ := json.Marshal(msg)
-			getProductionRequest.Callback(api.ActionResult{Data: data})
+			pvDemandRequest.Callback(api.ActionResult{Data: data})
+		case setPoint := <-setPointChannel:
+			var value common.Value
+			if err := json.Unmarshal(setPoint.Data, &value); err != nil {
+				log.Printf("pv - could not unmarshal incoming set point, %s", err)
+				continue
+			}
+
+			if value.Id != id {
+				continue
+			}
+
+			if value.Timestamp.After(time.Now().Add(-cfg.Charger.MaximumAcceptableSetPointOffset)) {
+				log.Printf("pv - got new  set point: %f", value.Value)
+				setPointMonitor.Reset(setPointMonitorDuration)
+				mqttConnector.PublishSetPoint(ctx, value.Value)
+			} else {
+				log.Println("pv - got too old set point, ignoring it")
+				log.Printf("pv - now: %s, got: %s", time.Now(), value.Timestamp)
+			}
 		case <-sigChan:
 			return
 		}

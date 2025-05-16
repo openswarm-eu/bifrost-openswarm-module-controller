@@ -1,15 +1,10 @@
 package controller
 
-import (
-	"code.siemens.com/energy-community-controller/common"
-)
-
 type state struct {
-	pvProductionValues []common.Value
-	chargerRequests    []common.Value
-	setPoints          []common.Value
-	sensors            map[string]*sensor
-	rootSensor         *sensor
+	sensors    map[string]*sensor
+	chargers   map[string]*component
+	pvs        map[string]*component
+	rootSensor *sensor
 }
 
 type component struct {

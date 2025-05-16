@@ -7,7 +7,6 @@ import (
 	"log"
 	"math"
 	"os"
-	"time"
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/sct"
@@ -42,9 +41,9 @@ func newLogic(config common.ControllerConfig, connector *connector, state *state
 	defer s2.Close()
 
 	callbacks := make(map[string]func())
-	callbacks["calculateEqualAllocationSetPoints"] = l.calculateChargerPower
+	//callbacks["calculateEqualAllocationSetPoints"] = l.calculateChargerPower
 	callbacks["getData"] = connector.getData
-	callbacks["sendSetPoints"] = connector.sendChargingSetPoints
+	callbacks["sendSetPoints"] = connector.sendSetPoints
 	if sct, err := sct.NewSCT([]io.Reader{s1, s2}, callbacks); err != nil {
 		return nil, err
 	} else {
@@ -86,30 +85,6 @@ func (l *logic) start(ctx context.Context) error {
 
 func (l *logic) newRound() {
 	addEvent("newRound")
-}
-
-func (l *logic) calculateChargerPower() {
-	log.Println("controller -", l.state.pvProductionValues)
-	log.Println("controller -", l.state.chargerRequests)
-
-	var sumPvProduction float64
-	for _, productionValue := range l.state.pvProductionValues {
-		sumPvProduction += productionValue.Value
-	}
-
-	var chargingSetPoint float64
-	numChargers := len(l.state.chargerRequests)
-	if numChargers > 0 {
-		chargingSetPoint = sumPvProduction / float64(len(l.state.chargerRequests))
-	} else {
-		chargingSetPoint = 0
-	}
-
-	l.state.setPoints = make([]common.Value, len(l.state.chargerRequests))
-
-	for i, charger := range l.state.chargerRequests {
-		l.state.setPoints[i] = common.Value{Message: common.Message{Id: charger.Id, Timestamp: time.Now()}, Value: chargingSetPoint}
-	}
 }
 
 func (l *logic) calculateFlowProposal() {

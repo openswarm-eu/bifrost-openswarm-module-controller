@@ -14,11 +14,10 @@ type Controller struct {
 
 func NewController(config common.ControllerConfig, ddaConnector *dda.Connector) (*Controller, error) {
 	state := &state{
-		pvProductionValues: []common.Value{},
-		chargerRequests:    []common.Value{},
-		setPoints:          []common.Value{},
-		sensors:            make(map[string]*sensor),
-		rootSensor:         &sensor{id: "root", childSensors: make([]*sensor, 0)}}
+		sensors:    make(map[string]*sensor),
+		chargers:   make(map[string]*component),
+		pvs:        make(map[string]*component),
+		rootSensor: &sensor{id: "root", childSensors: make([]*sensor, 0)}}
 	connector := newConnector(config, ddaConnector, state)
 	logic, err := newLogic(config, connector, state)
 	if err != nil {

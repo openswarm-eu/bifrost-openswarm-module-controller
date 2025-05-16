@@ -42,6 +42,7 @@ func main() {
 
 	var ddaConnector *dda.Connector
 	var mqttConnector *mqtt.Connector
+	var demand float64
 	var err error
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -89,20 +90,26 @@ func main() {
 
 	register(ctx, ddaConnector, cfg)
 
-	chargerRequestChannel, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.CHARGER_ACTION})
+	demandChannel, err := mqttConnector.SubscribeToDemands(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	chargingSetPointChannel, err := ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.CHARGING_SET_POINT})
+	chargerDemandRequests, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.GET_CHARGER_DEMAND_ACTION})
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	chargingSetPointMonitorDuration := cfg.Controller.Periode + cfg.Charger.MaximumAcceptableSetPointOffset
-	var chargingSetPointMonitor common.Timer
-	chargingSetPointMonitor.Start(chargingSetPointMonitorDuration, func() {
-		log.Println("charger - charging set point timeout")
+	setPointChannel, err := ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.SET_POINT})
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	setPointMonitorDuration := cfg.Controller.Periode + cfg.Charger.MaximumAcceptableSetPointOffset
+	var setPointMonitor common.Timer
+	setPointMonitor.Start(setPointMonitorDuration, func() {
+		log.Println("charger - set point timeout")
+		mqttConnector.PublishSetPoint(ctx, 0)
 	})
 
 	sigChan := make(chan os.Signal, 1)
@@ -110,27 +117,30 @@ func main() {
 
 	for {
 		select {
-		case chargerRequest := <-chargerRequestChannel:
-			msg := common.Value{Message: common.Message{Id: cfg.Id, Timestamp: time.Now()}, Value: 0}
+		case newDemand := <-demandChannel:
+			log.Printf("pv - got new production value: %f", newDemand)
+			demand = newDemand
+		case chargerDemandRequest := <-chargerDemandRequests:
+			msg := common.Value{Message: common.Message{Id: id, Timestamp: time.Now()}, Value: demand}
 			data, _ := json.Marshal(msg)
-			chargerRequest.Callback(api.ActionResult{Data: data})
-		case chargingSetPoint := <-chargingSetPointChannel:
+			chargerDemandRequest.Callback(api.ActionResult{Data: data})
+		case setPoint := <-setPointChannel:
 			var value common.Value
-			if err := json.Unmarshal(chargingSetPoint.Data, &value); err != nil {
-				log.Printf("Could not unmarshal incoming charging set point, %s", err)
+			if err := json.Unmarshal(setPoint.Data, &value); err != nil {
+				log.Printf("charger - could not unmarshal incoming set point, %s", err)
 				continue
 			}
 
-			if value.Id != cfg.Id {
+			if value.Id != id {
 				continue
 			}
 
 			if value.Timestamp.After(time.Now().Add(-cfg.Charger.MaximumAcceptableSetPointOffset)) {
-				log.Printf("charger - got new charging set point: %f", value.Value)
-				chargingSetPointMonitor.Reset(chargingSetPointMonitorDuration)
-				mqttConnector.PublishChargingSetPoint(ctx, value.Value)
+				log.Printf("charger - got new set point: %f", value.Value)
+				setPointMonitor.Reset(setPointMonitorDuration)
+				mqttConnector.PublishSetPoint(ctx, value.Value)
 			} else {
-				log.Println("charger - got too old charging set point, ignoring it")
+				log.Println("charger - got too old set point, ignoring it")
 				log.Printf("charger - now: %s, got: %s", time.Now(), value.Timestamp)
 			}
 		case <-sigChan:
