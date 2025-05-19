@@ -41,8 +41,10 @@ func newLogic(config common.ControllerConfig, connector *connector, state *state
 	defer s2.Close()
 
 	callbacks := make(map[string]func())
-	//callbacks["calculateEqualAllocationSetPoints"] = l.calculateChargerPower
 	callbacks["getData"] = connector.getData
+	callbacks["calculateSetPointsWithoutLimits"] = l.calculateSetPointsWithoutLimits
+	callbacks["calculateSetPointsWithLimits"] = l.calculateSetPointsWithLimits
+	callbacks["sendFlows"] = connector.sendFlows
 	callbacks["sendSetPoints"] = connector.sendSetPoints
 	if sct, err := sct.NewSCT([]io.Reader{s1, s2}, callbacks); err != nil {
 		return nil, err
@@ -55,7 +57,7 @@ func newLogic(config common.ControllerConfig, connector *connector, state *state
 
 func (l *logic) start(ctx context.Context) error {
 	eventChannel = make(chan string, 100)
-	var ticker common.Ticker
+	//var ticker common.Ticker
 
 	l.sct.Start(ctx)
 
@@ -65,16 +67,16 @@ func (l *logic) start(ctx context.Context) error {
 			case v := <-l.connector.leaderCh(ctx):
 				if v {
 					log.Println("controller - I'm leader, starting logic")
-					ticker.Start(l.config.Periode, l.newRound)
+					///ticker.Start(l.config.Periode, l.newRound)
 				} else {
 					log.Println("controller - lost leadership, stop logic")
-					ticker.Stop()
+					//ticker.Stop()
 				}
 			case event := <-eventChannel:
 				l.sct.AddEvent(event)
 			case <-ctx.Done():
 				log.Printf("controller - shutdown leader channel observer")
-				ticker.Stop()
+				//ticker.Stop()
 				return
 			}
 		}
@@ -83,19 +85,19 @@ func (l *logic) start(ctx context.Context) error {
 	return nil
 }
 
-func (l *logic) newRound() {
+/*func (l *logic) newRound() {
 	addEvent("newRound")
-}
+}*/
 
-func (l *logic) calculateFlowProposal() {
+func (l *logic) calculateSetPointsWithoutLimits() {
 	for _, sensor := range l.state.sensors {
 		sensor.limit = math.MaxFloat64
 	}
 
-	l.calculateSetPoints()
+	l.calculateSetPointsWithLimits()
 }
 
-func (l *logic) calculateSetPoints() {
+func (l *logic) calculateSetPointsWithLimits() {
 	l.state.rootSensor.reset()
 	l.state.rootSensor.setSetPoints()
 }

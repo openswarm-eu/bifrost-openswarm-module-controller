@@ -12,13 +12,13 @@ type Controller struct {
 	logic     *logic
 }
 
-func NewController(config common.ControllerConfig, ddaConnector *dda.Connector) (*Controller, error) {
+func NewController(config common.ControllerConfig, id string, ddaConnector *dda.Connector) (*Controller, error) {
 	state := &state{
 		sensors:    make(map[string]*sensor),
 		chargers:   make(map[string]*component),
 		pvs:        make(map[string]*component),
 		rootSensor: &sensor{id: "root", childSensors: make([]*sensor, 0)}}
-	connector := newConnector(config, ddaConnector, state)
+	connector := newConnector(config, id, ddaConnector, state)
 	logic, err := newLogic(config, connector, state)
 	if err != nil {
 		return nil, err

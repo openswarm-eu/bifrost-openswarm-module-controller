@@ -16,6 +16,7 @@ import (
 
 type connector struct {
 	config       common.ControllerConfig
+	id           string
 	ddaConnector *dda.Connector
 	state        *state
 
@@ -23,9 +24,10 @@ type connector struct {
 	leader bool
 }
 
-func newConnector(config common.ControllerConfig, ddaConnector *dda.Connector, state *state) *connector {
+func newConnector(config common.ControllerConfig, id string, ddaConnector *dda.Connector, state *state) *connector {
 	return &connector{
 		config:       config,
+		id:           id,
 		ddaConnector: ddaConnector,
 		state:        state,
 		leader:       false,
@@ -47,6 +49,16 @@ func (c *connector) start(ctx context.Context) error {
 		return err
 	}
 
+	requestFlowProposalChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.FLOW_PROPOSAL_EVENT})
+	if err != nil {
+		return err
+	}
+
+	sensorLimitChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SENSOR_LIMITS_EVENT, c.id)})
+	if err != nil {
+		return err
+	}
+
 	sc, err := c.ddaConnector.ObserveStateChange(ctx)
 	if err != nil {
 		return err
@@ -57,24 +69,29 @@ func (c *connector) start(ctx context.Context) error {
 			select {
 			case registerNode := <-registerNodeChannel:
 				if c.leader {
-					log.Println("controller - got register node")
-					var msg common.DdaRegisterMessage
-					if err := json.Unmarshal(registerNode.Data, &msg); err != nil {
-						log.Printf("Could not unmarshal incoming register message, %s", err)
-						continue
-					}
-					c.writeNodeToLog(msg)
+					continue
 				}
+
+				log.Println("controller - got register node")
+				var msg common.DdaRegisterMessage
+				if err := json.Unmarshal(registerNode.Data, &msg); err != nil {
+					log.Printf("Could not unmarshal incoming register message, %s", err)
+					continue
+				}
+				c.writeNodeToLog(msg)
 			case deregisterNode := <-deregisterNodeChannel:
 				if c.leader {
-					log.Println("controller - got deregister node")
-					var msg common.DdaRegisterMessage
-					if err := json.Unmarshal(deregisterNode.Data, &msg); err != nil {
-						log.Printf("Could not unmarshal incoming deregister message, %s", err)
-						continue
-					}
-					c.removeNodeFromLog(msg)
+					continue
 				}
+
+				log.Println("controller - got deregister node")
+				var msg common.DdaRegisterMessage
+				if err := json.Unmarshal(deregisterNode.Data, &msg); err != nil {
+					log.Printf("Could not unmarshal incoming deregister message, %s", err)
+					continue
+				}
+
+				c.removeNodeFromLog(msg)
 			case v := <-leaderChannel:
 				if v {
 					c.leader = true
@@ -131,8 +148,30 @@ func (c *connector) start(ctx context.Context) error {
 				}
 
 				if c.leader {
-					c.ddaConnector.PublishEvent(api.Event{Type: common.REGISTER_RESPONSE_EVENT, Source: "controller", Id: uuid.NewString(), Data: []byte(nodeId)})
+					c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.REGISTER_RESPONSE_EVENT, nodeId), Source: c.id, Id: uuid.NewString(), Data: []byte(nodeId)})
 				}
+			case <-requestFlowProposalChannel:
+				if c.leader {
+					addEvent("newRound")
+				}
+			case sensorLimits := <-sensorLimitChannel:
+				if !c.leader {
+					continue
+				}
+
+				var msg common.SensorLimitsMessage
+				if err := json.Unmarshal(sensorLimits.Data, &msg); err != nil {
+					log.Printf("Could not unmarshal incoming sensor limits message, %s", err)
+					continue
+				}
+
+				for _, limit := range msg.Limits {
+					if sensor, ok := c.state.sensors[limit.SensorId]; ok {
+						sensor.limit = limit.Limit
+					}
+				}
+
+				addEvent("sensorLimitsReceived")
 			}
 		}
 	}()
@@ -155,14 +194,14 @@ func (c *connector) getData() {
 	go func() {
 		ctx, cancel := context.WithCancel(c.ctx)
 
-		pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_PV_DEMAND_ACTION, Id: uuid.NewString(), Source: "controller"})
+		pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_PV_DEMAND_ACTION, Id: uuid.NewString(), Source: c.id})
 		if err != nil {
 			log.Printf("controller - could not get PV response - %s", err)
 			cancel()
 			return
 		}
 
-		chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_CHARGER_DEMAND_ACTION, Id: uuid.NewString(), Source: "controller"})
+		chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_CHARGER_DEMAND_ACTION, Id: uuid.NewString(), Source: c.id})
 		if err != nil {
 			log.Printf("controller - could not get charger response - %s", err)
 			cancel()
@@ -231,11 +270,23 @@ func (c *connector) removeNodeFromLog(registerMessage common.DdaRegisterMessage)
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
+func (c *connector) sendFlows() {
+	/*flowProposals := make([]common.FlowProposal, len(c.state.sensors))
+	for _, sensor := range c.state.sensors {
+		flowProposals = append(flowProposals, common.FlowProposal{
+			SensorId: sensor.id,
+			Flow:     sensor.flow,
+		})
+	}
+
+	data, _ := json.Marshal(common.FlowProposalsMessage{Proposals: flowProposals})*/
+}
+
 func (c *connector) sendSetPoints() {
 	for _, charger := range c.state.chargers {
 		msg := common.Value{Message: common.Message{Id: charger.id, Timestamp: time.Now()}, Value: charger.setPoint}
 		data, _ := json.Marshal(msg)
-		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.SET_POINT, Source: "ddaConsistencyProvider", Id: uuid.NewString(), Data: data}); err != nil {
+		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_POINT, charger.id), Source: c.id, Id: uuid.NewString(), Data: data}); err != nil {
 			log.Printf("could not send charging set point - %s", err)
 		}
 	}
@@ -243,7 +294,7 @@ func (c *connector) sendSetPoints() {
 	for _, pv := range c.state.pvs {
 		msg := common.Value{Message: common.Message{Id: pv.id, Timestamp: time.Now()}, Value: pv.setPoint}
 		data, _ := json.Marshal(msg)
-		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.SET_POINT, Source: "ddaConsistencyProvider", Id: uuid.NewString(), Data: data}); err != nil {
+		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_POINT, pv.id), Source: c.id, Id: uuid.NewString(), Data: data}); err != nil {
 			log.Printf("could not send pv set point - %s", err)
 		}
 	}

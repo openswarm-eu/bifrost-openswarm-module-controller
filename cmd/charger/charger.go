@@ -71,7 +71,7 @@ func main() {
 	}
 
 	if cfg.Leader.Enabled {
-		if controller, err := controller.NewController(cfg.Controller, ddaConnector); err != nil {
+		if controller, err := controller.NewController(cfg.Controller, cfg.Id, ddaConnector); err != nil {
 			log.Fatalln(err)
 		} else {
 			if err := controller.Start(ctx); err != nil {
@@ -100,7 +100,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	setPointChannel, err := ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.SET_POINT})
+	setPointChannel, err := ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SET_POINT, cfg.Id)})
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -152,7 +152,7 @@ func main() {
 func register(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Config) {
 	registerContext, registerCancel := context.WithCancel(ctx)
 	defer registerCancel()
-	registerResponseChannel, err := ddaConnector.SubscribeEvent(registerContext, api.SubscriptionFilter{Type: common.REGISTER_RESPONSE_EVENT})
+	registerResponseChannel, err := ddaConnector.SubscribeEvent(registerContext, api.SubscriptionFilter{Type: common.AppendId(common.REGISTER_RESPONSE_EVENT, cfg.Id)})
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -166,11 +166,9 @@ func register(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Conf
 		}
 
 		select {
-		case receivedId := <-registerResponseChannel:
-			if string(receivedId.Data) == cfg.Id {
-				log.Println("charger - node registered")
-				return
-			}
+		case <-registerResponseChannel:
+			log.Println("charger - node registered")
+			return
 		case <-time.After(5 * time.Second):
 			continue
 		case <-registerContext.Done():
@@ -183,7 +181,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Co
 	deregisterContext, deregisterCancel := context.WithCancel(ctx)
 	defer deregisterCancel()
 
-	deregisterResponseChannel, err := ddaConnector.SubscribeEvent(deregisterContext, api.SubscriptionFilter{Type: common.REGISTER_RESPONSE_EVENT})
+	deregisterResponseChannel, err := ddaConnector.SubscribeEvent(deregisterContext, api.SubscriptionFilter{Type: common.AppendId(common.REGISTER_RESPONSE_EVENT, cfg.Id)})
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -196,11 +194,9 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Co
 		}
 
 		select {
-		case receivedId := <-deregisterResponseChannel:
-			if string(receivedId.Data) == cfg.Id {
-				log.Println("charger - node deregistered")
-				return
-			}
+		case <-deregisterResponseChannel:
+			log.Println("charger - node deregistered")
+			return
 		case <-time.After(5 * time.Second):
 			continue
 		}
