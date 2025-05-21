@@ -29,12 +29,12 @@ func newConnector(ddaConnector *dda.Connector, state *state) *connector {
 func (c *connector) start(ctx context.Context) error {
 	c.ctx = ctx
 
-	registerSensorChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.REGISTER_EVENT})
+	registerSensorChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.REGISTER_ACTION})
 	if err != nil {
 		return err
 	}
 
-	deregisterSensorChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.DEREGISTER_EVENT})
+	deregisterSensorChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.DEREGISTER_ACTION})
 	if err != nil {
 		return err
 	}
