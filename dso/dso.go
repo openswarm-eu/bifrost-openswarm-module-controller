@@ -16,10 +16,12 @@ type Dso struct {
 // fix which type of config we need
 func NewDso(config common.ControllerConfig, ddaConnector *dda.Connector) (*Dso, error) {
 	state := &state{
-		leader:              false,
-		topology:            topology{Version: 0, Sensors: make(map[string][]string)},
-		registerCallbacks:   make(map[string]api.ActionCallback),
-		deregisterCallbacks: make(map[string]api.ActionCallback),
+		leader:                             false,
+		topology:                           topology{Version: 0, Sensors: make(map[string][]string)},
+		registerCallbacks:                  make(map[string]api.ActionCallback),
+		deregisterCallbacks:                make(map[string]api.ActionCallback),
+		registerEnergyCommunityCallbacks:   make(map[string]api.ActionCallback),
+		deregisterEnergyCommunityCallbacks: make(map[string]api.ActionCallback),
 	}
 
 	connector := newConnector(ddaConnector, state)
