@@ -5,6 +5,7 @@ import (
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/dda"
+	"github.com/coatyio/dda/services/com/api"
 )
 
 type Controller struct {
@@ -14,10 +15,14 @@ type Controller struct {
 
 func NewController(config common.ControllerConfig, id string, ddaConnector *dda.Connector) (*Controller, error) {
 	state := &state{
-		sensors:    make(map[string]*sensor),
-		chargers:   make(map[string]*component),
-		pvs:        make(map[string]*component),
-		rootSensor: &sensor{id: "root", childSensors: make([]*sensor, 0)}}
+		leader:              false,
+		sensors:             make(map[string]*sensor),
+		chargers:            make(map[string]*component),
+		pvs:                 make(map[string]*component),
+		rootSensor:          &sensor{id: "root", childSensors: make([]*sensor, 0)},
+		registerCallbacks:   make(map[string]api.ActionCallback),
+		deregisterCallbacks: make(map[string]api.ActionCallback),
+	}
 	connector := newConnector(config, id, ddaConnector, state)
 	logic, err := newLogic(config, connector, state)
 	if err != nil {

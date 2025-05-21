@@ -20,13 +20,13 @@ import (
 func main() {
 	log.Println("starting pv")
 
-	var id string
+	var nodeId string
 	var url string
 	var energyCommunityId string
 	var sensorId string
 	bootstrap := flag.Bool("b", false, "bootstrap raft")
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
-	flag.StringVar(&id, "id", uuid.NewString(), "node id")
+	flag.StringVar(&nodeId, "id", uuid.NewString(), "node id")
 	flag.StringVar(&url, "url", "tcp://localhost:1883", "mqtt url")
 	flag.StringVar(&energyCommunityId, "energyCommunityId", "energyCommunity", "energy community id")
 	flag.StringVar(&sensorId, "sensorId", "sensor", "sensor id")
@@ -35,7 +35,7 @@ func main() {
 	cfg := common.NewConfig()
 	cfg.Name = "pv"
 	cfg.Url = url
-	cfg.Id = id
+	cfg.Id = nodeId
 	cfg.EnergyCommunityId = energyCommunityId
 	cfg.Leader.Enabled = *leadershipElectionEnabled
 	cfg.Leader.Bootstrap = *bootstrap
@@ -50,7 +50,7 @@ func main() {
 	defer func() {
 		log.Println("shutting down")
 
-		deregister(ctx, ddaConnector, cfg)
+		deregister(ctx, ddaConnector, nodeId, sensorId)
 		cancel()
 
 		if ddaConnector != nil {
@@ -88,7 +88,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	register(ctx, ddaConnector, cfg)
+	register(ctx, ddaConnector, nodeId, sensorId)
 
 	demandChannel, err := mqttConnector.SubscribeToDemands(ctx)
 	if err != nil {
@@ -121,7 +121,7 @@ func main() {
 			log.Printf("pv - got new production value: %f", newDemand)
 			demand = newDemand
 		case pvDemandRequest := <-pvDemandRequests:
-			msg := common.Value{Message: common.Message{Id: id, Timestamp: time.Now()}, Value: demand}
+			msg := common.Value{Message: common.Message{Id: nodeId, Timestamp: time.Now()}, Value: demand}
 			data, _ := json.Marshal(msg)
 			pvDemandRequest.Callback(api.ActionResult{Data: data})
 		case setPoint := <-setPointChannel:
@@ -145,56 +145,58 @@ func main() {
 	}
 }
 
-func register(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Config) {
-	registerContext, registerCancel := context.WithCancel(ctx)
-	defer registerCancel()
-	registerResponseChannel, err := ddaConnector.SubscribeEvent(registerContext, api.SubscriptionFilter{Type: common.AppendId(common.REGISTER_RESPONSE_EVENT, cfg.Id)})
-	if err != nil {
-		log.Fatalln(err)
-	}
+func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string) {
+	registerMessage := common.DdaRegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now().Unix()}
+	data, _ := json.Marshal(registerMessage)
 
 	for {
 		log.Println("pv - trying to register node")
 
-		err = ddaConnector.RegisterNode(cfg.Id, cfg.SensorId, common.PV_NODE_TPYE)
+		registerContext, registerCancel := context.WithCancel(ctx)
+
+		result, err := ddaConnector.PublishAction(registerContext, api.Action{Type: common.REGISTER_ACTION, Id: uuid.NewString(), Source: nodeId, Params: data})
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		select {
-		case <-registerResponseChannel:
+		case <-result:
 			log.Println("pv - node registered")
+			registerCancel()
 			return
 		case <-time.After(5 * time.Second):
-			continue
+			registerCancel()
 		case <-registerContext.Done():
+			registerCancel()
 			return
 		}
 	}
 }
 
-func deregister(ctx context.Context, ddaConnector *dda.Connector, cfg *common.Config) {
-	deregisterContext, deregisterCancel := context.WithCancel(ctx)
-	defer deregisterCancel()
+func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string) {
+	registerMessage := common.DdaRegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now().Unix()}
+	data, _ := json.Marshal(registerMessage)
 
-	deregisterResponseChannel, err := ddaConnector.SubscribeEvent(deregisterContext, api.SubscriptionFilter{Type: common.AppendId(common.REGISTER_RESPONSE_EVENT, cfg.Id)})
-	if err != nil {
-		log.Fatalln(err)
-	}
 	for {
 		log.Println("pv - trying to deregister node")
 
-		err = ddaConnector.DeregisterNode(cfg.Id, cfg.SensorId, common.PV_NODE_TPYE)
+		deregisterContext, deregisterCancel := context.WithCancel(ctx)
+
+		result, err := ddaConnector.PublishAction(deregisterContext, api.Action{Type: common.DEREGISTER_ACTION, Id: uuid.NewString(), Source: sensorId, Params: data})
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		select {
-		case <-deregisterResponseChannel:
+		case <-result:
 			log.Println("pv - node deregistered")
+			deregisterCancel()
 			return
 		case <-time.After(5 * time.Second):
-			continue
+			deregisterCancel()
+		case <-deregisterContext.Done():
+			deregisterCancel()
+			return
 		}
 	}
 }

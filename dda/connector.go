@@ -2,15 +2,12 @@ package dda
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"time"
 
 	"code.siemens.com/energy-community-controller/common"
 	"github.com/coatyio/dda/config"
 	"github.com/coatyio/dda/dda"
-	"github.com/coatyio/dda/services/com/api"
-	"github.com/google/uuid"
 )
 
 type Connector struct {
@@ -72,30 +69,4 @@ func (c *Connector) Close() {
 	}
 
 	c.Dda.Close()
-}
-
-func (c *Connector) RegisterNode(nodeId string, sendorId string, nodeType string) error {
-	registerMessage := common.DdaRegisterNodeMessage{NodeId: nodeId, SensorId: sendorId, NodeType: nodeType, Timestamp: time.Now().Unix()}
-	data, err := json.Marshal(registerMessage)
-
-	if err != nil {
-		return err
-
-	}
-
-	event := api.Event{Type: common.REGISTER_EVENT, Id: uuid.NewString(), Source: "controller", Data: data}
-	return c.Dda.PublishEvent(event)
-}
-
-func (c *Connector) DeregisterNode(nodeId string, sendorId string, nodeType string) error {
-	registerMessage := common.DdaRegisterNodeMessage{NodeId: nodeId, SensorId: sendorId, NodeType: nodeType, Timestamp: time.Now().Unix()}
-	data, err := json.Marshal(registerMessage)
-
-	if err != nil {
-		return err
-
-	}
-
-	event := api.Event{Type: common.DEREGISTER_EVENT, Id: uuid.NewString(), Source: "controller", Data: data}
-	return c.Dda.PublishEvent(event)
 }

@@ -67,9 +67,11 @@ func (l *logic) start(ctx context.Context) error {
 			case v := <-l.connector.leaderCh(ctx):
 				if v {
 					log.Println("controller - I'm leader, starting logic")
+					l.state.leader = true
 					///ticker.Start(l.config.Periode, l.newRound)
 				} else {
 					log.Println("controller - lost leadership, stop logic")
+					l.state.leader = false
 					//ticker.Stop()
 				}
 			case event := <-eventChannel:

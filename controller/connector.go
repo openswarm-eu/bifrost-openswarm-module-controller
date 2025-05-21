@@ -20,8 +20,7 @@ type connector struct {
 	ddaConnector *dda.Connector
 	state        *state
 
-	ctx    context.Context
-	leader bool
+	ctx context.Context
 }
 
 func newConnector(config common.ControllerConfig, id string, ddaConnector *dda.Connector, state *state) *connector {
@@ -30,21 +29,18 @@ func newConnector(config common.ControllerConfig, id string, ddaConnector *dda.C
 		id:           id,
 		ddaConnector: ddaConnector,
 		state:        state,
-		leader:       false,
 	}
 }
 
 func (c *connector) start(ctx context.Context) error {
 	c.ctx = ctx
 
-	leaderChannel := c.leaderCh(ctx)
-
-	registerNodeChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.REGISTER_EVENT})
+	registerNodeChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.REGISTER_ACTION})
 	if err != nil {
 		return err
 	}
 
-	deregisterNodeChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.DEREGISTER_EVENT})
+	deregisterNodeChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.DEREGISTER_ACTION})
 	if err != nil {
 		return err
 	}
@@ -67,37 +63,36 @@ func (c *connector) start(ctx context.Context) error {
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case registerNode := <-registerNodeChannel:
-				if c.leader {
+				if !c.state.leader {
 					continue
 				}
 
 				log.Println("controller - got register node")
 				var msg common.DdaRegisterNodeMessage
-				if err := json.Unmarshal(registerNode.Data, &msg); err != nil {
+				if err := json.Unmarshal(registerNode.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register message, %s", err)
 					continue
 				}
+
+				c.state.registerCallbacks[msg.NodeId] = registerNode.Callback
 				c.writeNodeToLog(msg)
 			case deregisterNode := <-deregisterNodeChannel:
-				if c.leader {
+				if !c.state.leader {
 					continue
 				}
 
 				log.Println("controller - got deregister node")
 				var msg common.DdaRegisterNodeMessage
-				if err := json.Unmarshal(deregisterNode.Data, &msg); err != nil {
+				if err := json.Unmarshal(deregisterNode.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister message, %s", err)
 					continue
 				}
 
+				c.state.deregisterCallbacks[msg.NodeId] = deregisterNode.Callback
 				c.removeNodeFromLog(msg)
-			case v := <-leaderChannel:
-				if v {
-					c.leader = true
-				} else {
-					c.leader = false
-				}
 			case stateChange := <-sc:
 				if !strings.HasPrefix(stateChange.Key, NODE_PREFIX) {
 					continue
@@ -120,6 +115,13 @@ func (c *connector) start(ctx context.Context) error {
 						c.state.sensors[msg.SensorId].pvs = append(c.state.sensors[msg.SensorId].pvs, &component{id: msg.Id, demand: 0, setPoint: 0})
 					} else if msg.NodeType == common.CHARGER_NODE_TYPE {
 						c.state.sensors[msg.SensorId].chargers = append(c.state.sensors[msg.SensorId].chargers, &component{id: msg.Id, demand: 0, setPoint: 0})
+					}
+
+					if c.state.leader {
+						if callback, ok := c.state.registerCallbacks[nodeId]; ok {
+							callback(api.ActionResult{Data: []byte(nodeId)})
+							delete(c.state.registerCallbacks, nodeId)
+						}
 					}
 				} else {
 					for _, sensor := range c.state.sensors {
@@ -144,18 +146,21 @@ func (c *connector) start(ctx context.Context) error {
 						if found && len(sensor.pvs) != 0 && len(sensor.chargers) != 0 && len(sensor.childSensors) != 0 {
 							delete(c.state.sensors, sensor.id)
 						}
+
+						if c.state.leader {
+							if callback, ok := c.state.deregisterCallbacks[nodeId]; ok {
+								callback(api.ActionResult{Data: []byte(nodeId)})
+								delete(c.state.deregisterCallbacks, nodeId)
+							}
+						}
 					}
 				}
-
-				if c.leader {
-					c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.REGISTER_RESPONSE_EVENT, nodeId), Source: c.id, Id: uuid.NewString(), Data: []byte(nodeId)})
-				}
 			case <-requestFlowProposalChannel:
-				if c.leader {
+				if c.state.leader {
 					addEvent("newRound")
 				}
 			case sensorLimits := <-sensorLimitChannel:
-				if !c.leader {
+				if !c.state.leader {
 					continue
 				}
 
