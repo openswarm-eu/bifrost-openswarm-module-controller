@@ -49,7 +49,7 @@ func (c *connector) start(ctx context.Context) error {
 		return err
 	}
 
-	requestFlowProposalChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.FLOW_PROPOSAL_EVENT})
+	requestFlowProposalChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.NEW_ROUND_EVENT})
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (c *connector) start(ctx context.Context) error {
 				}
 
 				log.Println("controller - got register node")
-				var msg common.DdaRegisterMessage
+				var msg common.DdaRegisterNodeMessage
 				if err := json.Unmarshal(registerNode.Data, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register message, %s", err)
 					continue
@@ -85,7 +85,7 @@ func (c *connector) start(ctx context.Context) error {
 				}
 
 				log.Println("controller - got deregister node")
-				var msg common.DdaRegisterMessage
+				var msg common.DdaRegisterNodeMessage
 				if err := json.Unmarshal(deregisterNode.Data, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister message, %s", err)
 					continue
@@ -249,7 +249,7 @@ func (c *connector) getData() {
 	}()
 }
 
-func (c *connector) writeNodeToLog(registerMessage common.DdaRegisterMessage) error {
+func (c *connector) writeNodeToLog(registerMessage common.DdaRegisterNodeMessage) error {
 	data, _ := json.Marshal(node{Id: registerMessage.NodeId, SensorId: registerMessage.SensorId, NodeType: registerMessage.NodeType})
 
 	input := stateAPI.Input{
@@ -261,7 +261,7 @@ func (c *connector) writeNodeToLog(registerMessage common.DdaRegisterMessage) er
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
-func (c *connector) removeNodeFromLog(registerMessage common.DdaRegisterMessage) error {
+func (c *connector) removeNodeFromLog(registerMessage common.DdaRegisterNodeMessage) error {
 	input := stateAPI.Input{
 		Op:  stateAPI.InputOpDelete,
 		Key: NODE_PREFIX + registerMessage.NodeId,

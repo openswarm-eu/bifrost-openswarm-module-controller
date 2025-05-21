@@ -14,11 +14,12 @@ import (
 )
 
 type Connector struct {
-	config         *common.Config
-	cliCfg         autopaho.ClientConfig
-	mqttConnection *autopaho.ConnectionManager
-	router         paho.Router
-	demandChannel  chan float64
+	config                   *common.Config
+	cliCfg                   autopaho.ClientConfig
+	mqttConnection           *autopaho.ConnectionManager
+	router                   paho.Router
+	demandChannel            chan float64
+	sensorMeasurementChannel chan float64
 }
 
 func NewConnector(config *common.Config) (*Connector, error) {
@@ -70,6 +71,9 @@ func (c *Connector) Close() {
 	if c.demandChannel != nil {
 		close(c.demandChannel)
 	}
+	if c.sensorMeasurementChannel != nil {
+		close(c.sensorMeasurementChannel)
+	}
 	c.mqttConnection.Disconnect(context.Background())
 }
 
@@ -106,6 +110,26 @@ func (c *Connector) SubscribeToDemands(ctx context.Context) (<-chan float64, err
 	return c.demandChannel, nil
 }
 
+func (c *Connector) SubscribeToSensorMeasurements(ctx context.Context) (<-chan float64, error) {
+	c.sensorMeasurementChannel = make(chan float64)
+	topic := fmt.Sprintf("%s/%s", c.config.Id, measurement_topic)
+
+	c.router.RegisterHandler(topic, func(p *paho.Publish) {
+		var msg measurementMessage
+		if err := json.Unmarshal(p.Payload, &msg); err != nil {
+			log.Printf("Could not unmarshal incomming sensor measurement message, %s", err)
+			return
+		}
+		c.sensorMeasurementChannel <- msg.Measurement
+	})
+
+	if _, err := c.mqttConnection.Subscribe(ctx, &paho.Subscribe{Subscriptions: []paho.SubscribeOptions{{Topic: topic, QoS: 1}}}); err != nil {
+		return nil, err
+	}
+
+	return c.sensorMeasurementChannel, nil
+}
+
 const demand_topic = "demand"
 
 type demandMessage struct {
@@ -116,4 +140,10 @@ const set_point_topic = "setPoint"
 
 type setPointMessage struct {
 	SetPoint float64 `json:"setPoint"`
+}
+
+const measurement_topic = "measurement"
+
+type measurementMessage struct {
+	Measurement float64 `json:"measurement"`
 }
