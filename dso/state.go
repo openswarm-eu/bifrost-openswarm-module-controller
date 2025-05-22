@@ -1,12 +1,13 @@
 package dso
 
 import (
+	"code.siemens.com/energy-community-controller/common"
 	"github.com/coatyio/dda/services/com/api"
 )
 
 type state struct {
 	leader            bool
-	energyCommunities map[string]energyCommunity // energyCommunityId -> energyCommunity
+	energyCommunities []energyCommunity
 	//flowProposals []common.FlowProposalsMessage
 
 	topology                           topology
@@ -17,8 +18,8 @@ type state struct {
 }
 
 type energyCommunity struct {
-	id              string
-	topologyVersion int
+	Id              string
+	TopologyVersion int
 }
 
 type topology struct {
@@ -38,4 +39,62 @@ func (s *state) cloneTopology() topology {
 	}
 
 	return result
+}
+
+func (s *state) cloneEnergyCommunities() []energyCommunity {
+	result := make([]energyCommunity, len(s.energyCommunities))
+
+	copy(result, s.energyCommunities)
+
+	return result
+}
+
+func addNodeToTopology(registerSensorMessage common.DdaRegisterSensorMessage, topology *topology) {
+	if _, ok := topology.Sensors[registerSensorMessage.SensorId]; !ok {
+		topology.Sensors[registerSensorMessage.SensorId] = make([]string, 0)
+	}
+
+	if registerSensorMessage.ParentSensorId == "" {
+		return
+	}
+
+	if _, ok := topology.Sensors[registerSensorMessage.ParentSensorId]; !ok {
+		topology.Sensors[registerSensorMessage.ParentSensorId] = make([]string, 0)
+	}
+
+	topology.Sensors[registerSensorMessage.ParentSensorId] = append(topology.Sensors[registerSensorMessage.ParentSensorId], registerSensorMessage.SensorId)
+}
+
+func removeNodeFromTopology(registerSensorMessage common.DdaRegisterSensorMessage, topology *topology) {
+	if _, ok := topology.Sensors[registerSensorMessage.SensorId]; !ok {
+		return
+	}
+
+	delete(topology.Sensors, registerSensorMessage.SensorId)
+
+	if registerSensorMessage.ParentSensorId == "" {
+		return
+	}
+
+	if _, ok := topology.Sensors[registerSensorMessage.ParentSensorId]; !ok {
+		return
+	}
+
+	childIds := topology.Sensors[registerSensorMessage.ParentSensorId]
+	for i, childId := range childIds {
+		if childId == registerSensorMessage.SensorId {
+			topology.Sensors[registerSensorMessage.ParentSensorId] = append(childIds[:i], childIds[i+1:]...)
+			break
+		}
+	}
+}
+
+func removeEnergyCommunity(newEnergyCommunities []energyCommunity, energyCommunityId string) []energyCommunity {
+	for i, energyCommunity := range newEnergyCommunities {
+		if energyCommunity.Id == energyCommunityId {
+			return append(newEnergyCommunities[:i], newEnergyCommunities[i+1:]...)
+		}
+	}
+
+	return newEnergyCommunities
 }

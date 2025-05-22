@@ -3,19 +3,23 @@ package controller
 import (
 	"context"
 
-	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/dda"
 	"github.com/coatyio/dda/services/com/api"
 )
 
 type Controller struct {
-	connector *connector
-	logic     *logic
+	energyCommunityconnector *energyCommunityConnector
+	dsoConnector             *dsoConnector
+	logic                    *logic
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-func NewController(config common.ControllerConfig, id string, ddaConnector *dda.Connector) (*Controller, error) {
+func NewController(config Config, energyCommunityId string, ddaConnectorEnergyCommunity *dda.Connector, ddaConnectorDso *dda.Connector) (*Controller, error) {
 	state := &state{
 		leader:              false,
+		registeredAtDso:     false,
 		sensors:             make(map[string]*sensor),
 		chargers:            make(map[string]*component),
 		pvs:                 make(map[string]*component),
@@ -23,24 +27,37 @@ func NewController(config common.ControllerConfig, id string, ddaConnector *dda.
 		registerCallbacks:   make(map[string]api.ActionCallback),
 		deregisterCallbacks: make(map[string]api.ActionCallback),
 	}
-	connector := newConnector(config, id, ddaConnector, state)
-	logic, err := newLogic(config, connector, state)
+	energyCommunityConnector := newEnergyCommunityConnector(config, energyCommunityId, ddaConnectorEnergyCommunity, state)
+	dsoConnector := newDsoConnector(energyCommunityId, ddaConnectorDso, energyCommunityConnector, state)
+	logic, err := newLogic(config, energyCommunityConnector, dsoConnector, state)
 	if err != nil {
 		return nil, err
 	}
 
-	c := Controller{connector: connector, logic: logic}
+	c := Controller{energyCommunityconnector: energyCommunityConnector, dsoConnector: dsoConnector, logic: logic}
 
 	return &c, nil
 }
 
-func (c *Controller) Start(ctx context.Context) error {
-	if err := c.connector.start(ctx); err != nil {
+func (c *Controller) Start() error {
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+
+	if err := c.energyCommunityconnector.start(c.ctx); err != nil {
 		return err
 	}
-	if err := c.logic.start(ctx); err != nil {
+
+	if err := c.dsoConnector.start(c.ctx); err != nil {
+		return err
+	}
+
+	if err := c.logic.start(c.ctx); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (c *Controller) Stop() {
+	c.cancel()
+	c.dsoConnector.stop()
 }

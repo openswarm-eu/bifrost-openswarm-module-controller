@@ -5,18 +5,17 @@ import (
 	"log"
 	"time"
 
-	"code.siemens.com/energy-community-controller/common"
 	"github.com/coatyio/dda/config"
 	"github.com/coatyio/dda/dda"
 )
 
 type Connector struct {
 	*dda.Dda
-	cfg            *common.Config
+	cfg            Config
 	leaderElection *LeaderElection
 }
 
-func NewConnector(cfg *common.Config) (*Connector, error) {
+func NewConnector(cfg Config) (*Connector, error) {
 	c := Connector{cfg: cfg}
 
 	ddaConfig := config.New()
@@ -25,7 +24,7 @@ func NewConnector(cfg *common.Config) (*Connector, error) {
 	ddaConfig.Identity.Id = cfg.Id
 	ddaConfig.Apis.Grpc.Disabled = true
 	ddaConfig.Apis.GrpcWeb.Disabled = true
-	ddaConfig.Cluster = cfg.EnergyCommunityId
+	ddaConfig.Cluster = cfg.Cluster
 
 	if cfg.Leader.Enabled {
 		ddaConfig.Services.State.Protocol = "raft"

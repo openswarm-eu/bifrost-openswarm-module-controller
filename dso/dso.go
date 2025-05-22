@@ -3,7 +3,6 @@ package dso
 import (
 	"context"
 
-	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/dda"
 	"github.com/coatyio/dda/services/com/api"
 )
@@ -14,7 +13,7 @@ type Dso struct {
 }
 
 // fix which type of config we need
-func NewDso(config common.ControllerConfig, ddaConnector *dda.Connector) (*Dso, error) {
+func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 	state := &state{
 		leader:                             false,
 		topology:                           topology{Version: 0, Sensors: make(map[string][]string)},

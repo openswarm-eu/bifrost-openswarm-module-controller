@@ -7,14 +7,13 @@ import (
 	"log"
 	"net/url"
 
-	"code.siemens.com/energy-community-controller/common"
 	"github.com/coatyio/dda/plog"
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
 )
 
 type Connector struct {
-	config                   *common.Config
+	config                   Config
 	cliCfg                   autopaho.ClientConfig
 	mqttConnection           *autopaho.ConnectionManager
 	router                   paho.Router
@@ -22,7 +21,7 @@ type Connector struct {
 	sensorMeasurementChannel chan float64
 }
 
-func NewConnector(config *common.Config) (*Connector, error) {
+func NewConnector(config Config) (*Connector, error) {
 	u, err := url.Parse(config.Url)
 	if err != nil {
 		return nil, err

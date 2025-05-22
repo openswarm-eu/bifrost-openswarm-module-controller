@@ -20,22 +20,15 @@ import (
 func main() {
 	log.Println("starting sensor")
 
-	var id string
+	var sensorId string
 	var parentSensorId string
 	var url string
 	bootstrap := flag.Bool("b", false, "bootstrap raft")
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
-	flag.StringVar(&id, "id", uuid.NewString(), "sensor id")
+	flag.StringVar(&sensorId, "id", uuid.NewString(), "sensor id")
 	flag.StringVar(&parentSensorId, "parentId", "", "parent sensor id")
 	flag.StringVar(&url, "url", "tcp://localhost:1883", "mqtt url")
 	flag.Parse()
-
-	cfg := common.NewConfig()
-	cfg.Name = "sensor"
-	cfg.Url = url
-	cfg.Id = id
-	cfg.Leader.Enabled = *leadershipElectionEnabled
-	cfg.Leader.Bootstrap = *bootstrap
 
 	var ddaConnector *dda.Connector
 	var mqttConnector *mqtt.Connector
@@ -47,7 +40,7 @@ func main() {
 	defer func() {
 		log.Println("shutting down")
 
-		deregister(ctx, ddaConnector, id, parentSensorId)
+		deregister(ctx, ddaConnector, sensorId, parentSensorId)
 		cancel()
 
 		if ddaConnector != nil {
@@ -59,7 +52,15 @@ func main() {
 		}
 	}()
 
-	if ddaConnector, err = dda.NewConnector(cfg); err != nil {
+	ddaConfig := dda.NewConfig()
+	ddaConfig.Name = "sensor"
+	ddaConfig.Url = url
+	ddaConfig.Id = sensorId
+	ddaConfig.Cluster = "dso"
+	ddaConfig.Leader.Enabled = *leadershipElectionEnabled
+	ddaConfig.Leader.Bootstrap = *bootstrap
+
+	if ddaConnector, err = dda.NewConnector(ddaConfig); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -67,8 +68,8 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	if cfg.Leader.Enabled {
-		if dso, err := dso.NewDso(cfg.Controller, ddaConnector); err != nil {
+	if *leadershipElectionEnabled {
+		if dso, err := dso.NewDso(dso.NewConfig(), ddaConnector); err != nil {
 			log.Fatalln(err)
 		} else {
 			if err := dso.Start(ctx); err != nil {
@@ -77,7 +78,7 @@ func main() {
 		}
 	}
 
-	if mqttConnector, err = mqtt.NewConnector(cfg); err != nil {
+	if mqttConnector, err = mqtt.NewConnector(mqtt.Config{Url: url, Id: sensorId}); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -85,7 +86,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	register(ctx, ddaConnector, id, parentSensorId)
+	register(ctx, ddaConnector, sensorId, parentSensorId)
 
 	measurementChannel, err := mqttConnector.SubscribeToSensorMeasurements(ctx)
 	if err != nil {
@@ -106,7 +107,7 @@ func main() {
 			log.Printf("sensor - got new measurement: %f", msrmt)
 			measurement = msrmt
 		case measurementRequest := <-measurementRequestChannel:
-			msg := common.Value{Message: common.Message{Id: id, Timestamp: time.Now()}, Value: measurement}
+			msg := common.Value{Message: common.Message{Id: sensorId, Timestamp: time.Now()}, Value: measurement}
 			data, _ := json.Marshal(msg)
 			measurementRequest.Callback(api.ActionResult{Data: data})
 		case <-sigChan:

@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 
-	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/sct"
 )
 
@@ -19,14 +18,20 @@ func addEvent(event string) {
 }
 
 type logic struct {
-	config    common.ControllerConfig
-	connector *connector
-	state     *state
-	sct       *sct.SCT
+	config                   Config
+	energyCommunityConnector *energyCommunityConnector
+	dsoConnector             *dsoConnector
+	state                    *state
+	sct                      *sct.SCT
 }
 
-func newLogic(config common.ControllerConfig, connector *connector, state *state) (*logic, error) {
-	l := logic{config: config, connector: connector, state: state}
+func newLogic(config Config, energyCommunityConnector *energyCommunityConnector, dsoConnector *dsoConnector, state *state) (*logic, error) {
+	l := logic{
+		config:                   config,
+		energyCommunityConnector: energyCommunityConnector,
+		dsoConnector:             dsoConnector,
+		state:                    state,
+	}
 
 	s1, err := os.Open("resources/simpleController1.xml")
 	if err != nil {
@@ -41,11 +46,11 @@ func newLogic(config common.ControllerConfig, connector *connector, state *state
 	defer s2.Close()
 
 	callbacks := make(map[string]func())
-	callbacks["getData"] = connector.getData
+	callbacks["getData"] = energyCommunityConnector.getData
 	callbacks["calculateSetPointsWithoutLimits"] = l.calculateSetPointsWithoutLimits
 	callbacks["calculateSetPointsWithLimits"] = l.calculateSetPointsWithLimits
-	callbacks["sendFlows"] = connector.sendFlows
-	callbacks["sendSetPoints"] = connector.sendSetPoints
+	callbacks["sendFlows"] = energyCommunityConnector.sendFlows
+	callbacks["sendSetPoints"] = energyCommunityConnector.sendSetPoints
 	if sct, err := sct.NewSCT([]io.Reader{s1, s2}, callbacks); err != nil {
 		return nil, err
 	} else {
@@ -64,10 +69,13 @@ func (l *logic) start(ctx context.Context) error {
 	go func() {
 		for {
 			select {
-			case v := <-l.connector.leaderCh(ctx):
+			case v := <-l.energyCommunityConnector.leaderCh(ctx):
 				if v {
 					log.Println("controller - I'm leader, starting logic")
 					l.state.leader = true
+					if !l.state.registeredAtDso {
+						l.dsoConnector.registerAtDso(ctx)
+					}
 					///ticker.Start(l.config.Periode, l.newRound)
 				} else {
 					log.Println("controller - lost leadership, stop logic")

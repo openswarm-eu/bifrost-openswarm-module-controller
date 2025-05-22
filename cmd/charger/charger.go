@@ -32,29 +32,29 @@ func main() {
 	flag.StringVar(&sensorId, "sensorId", "sensor", "sensor id")
 	flag.Parse()
 
-	cfg := common.NewConfig()
-	cfg.Name = "charger"
-	cfg.Url = url
-	cfg.Id = nodeId
-	cfg.EnergyCommunityId = energyCommunityId
-	cfg.Leader.Enabled = *leadershipElectionEnabled
-	cfg.Leader.Bootstrap = *bootstrap
-
-	var ddaConnector *dda.Connector
+	var ddaConnectorEnergyCommunity *dda.Connector
 	var mqttConnector *mqtt.Connector
+	var ctrl *controller.Controller
 	var demand float64
 	var err error
+
+	maximumAcceptableSetPointOffset := 1000 * time.Millisecond
+	controllerPeriode := 1000 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
-		log.Println("charger - shutting down")
+		log.Println("shutting down")
 
-		deregister(ctx, ddaConnector, nodeId, sensorId)
 		cancel()
 
-		if ddaConnector != nil {
-			ddaConnector.Close()
+		deregister(ctx, ddaConnectorEnergyCommunity, nodeId, sensorId)
+		if ctrl != nil {
+			ctrl.Stop()
+		}
+
+		if ddaConnectorEnergyCommunity != nil {
+			ddaConnectorEnergyCommunity.Close()
 		}
 
 		if mqttConnector != nil {
@@ -62,25 +62,53 @@ func main() {
 		}
 	}()
 
-	if ddaConnector, err = dda.NewConnector(cfg); err != nil {
+	ddaEnergyCommunityConfig := dda.NewConfig()
+	ddaEnergyCommunityConfig.Name = "pv"
+	ddaEnergyCommunityConfig.Url = url
+	ddaEnergyCommunityConfig.Id = nodeId
+	ddaEnergyCommunityConfig.Cluster = energyCommunityId
+	ddaEnergyCommunityConfig.Leader.Enabled = *leadershipElectionEnabled
+	ddaEnergyCommunityConfig.Leader.Bootstrap = *bootstrap
+
+	if ddaConnectorEnergyCommunity, err = dda.NewConnector(ddaEnergyCommunityConfig); err != nil {
 		log.Fatalln(err)
 	}
 
-	if err = ddaConnector.Open(); err != nil {
+	if err = ddaConnectorEnergyCommunity.Open(); err != nil {
 		log.Fatalln(err)
 	}
 
-	if cfg.Leader.Enabled {
-		if controller, err := controller.NewController(cfg.Controller, cfg.Id, ddaConnector); err != nil {
+	if *leadershipElectionEnabled {
+		ddaDsoConfig := dda.NewConfig()
+		ddaDsoConfig.Name = energyCommunityId
+		ddaDsoConfig.Url = url
+		ddaDsoConfig.Id = nodeId
+		ddaDsoConfig.Cluster = "dso"
+		ddaDsoConfig.Leader.Enabled = false
+		ddaDsoConfig.Leader.Bootstrap = false
+
+		var ddaConnectorDso *dda.Connector
+		if ddaConnectorDso, err = dda.NewConnector(ddaDsoConfig); err != nil {
+			log.Fatalln(err)
+		}
+
+		if err = ddaConnectorDso.Open(); err != nil {
+			log.Fatalln(err)
+		}
+
+		controllerConfig := controller.NewConfig()
+		controllerConfig.Periode = controllerPeriode
+
+		if ctrl, err = controller.NewController(controllerConfig, energyCommunityId, ddaConnectorEnergyCommunity, ddaConnectorDso); err != nil {
 			log.Fatalln(err)
 		} else {
-			if err := controller.Start(ctx); err != nil {
+			if err := ctrl.Start(); err != nil {
 				log.Fatalln(err)
 			}
 		}
 	}
 
-	if mqttConnector, err = mqtt.NewConnector(cfg); err != nil {
+	if mqttConnector, err = mqtt.NewConnector(mqtt.Config{Url: url, Id: nodeId}); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -88,24 +116,24 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	register(ctx, ddaConnector, nodeId, sensorId)
+	register(ctx, ddaConnectorEnergyCommunity, nodeId, sensorId)
 
 	demandChannel, err := mqttConnector.SubscribeToDemands(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	chargerDemandRequests, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.GET_CHARGER_DEMAND_ACTION})
+	chargerDemandRequests, err := ddaConnectorEnergyCommunity.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.GET_CHARGER_DEMAND_ACTION})
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	setPointChannel, err := ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SET_POINT, cfg.Id)})
+	setPointChannel, err := ddaConnectorEnergyCommunity.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SET_POINT, energyCommunityId)})
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	setPointMonitorDuration := cfg.Controller.Periode + cfg.Charger.MaximumAcceptableSetPointOffset
+	setPointMonitorDuration := controllerPeriode + maximumAcceptableSetPointOffset
 	var setPointMonitor common.Timer
 	setPointMonitor.Start(setPointMonitorDuration, func() {
 		log.Println("charger - set point timeout")
@@ -135,7 +163,7 @@ func main() {
 				continue
 			}
 
-			if value.Timestamp.After(time.Now().Add(-cfg.Charger.MaximumAcceptableSetPointOffset)) {
+			if value.Timestamp.After(time.Now().Add(-maximumAcceptableSetPointOffset)) {
 				log.Printf("charger - got new set point: %f", value.Value)
 				setPointMonitor.Reset(setPointMonitorDuration)
 				mqttConnector.PublishSetPoint(ctx, value.Value)
@@ -186,7 +214,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string,
 
 		deregisterContext, deregisterCancel := context.WithCancel(ctx)
 
-		result, err := ddaConnector.PublishAction(deregisterContext, api.Action{Type: common.DEREGISTER_ACTION, Id: uuid.NewString(), Source: sensorId, Params: data})
+		result, err := ddaConnector.PublishAction(deregisterContext, api.Action{Type: common.DEREGISTER_ACTION, Id: uuid.NewString(), Source: nodeId, Params: data})
 		if err != nil {
 			log.Fatalln(err)
 		}

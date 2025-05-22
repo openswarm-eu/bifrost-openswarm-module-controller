@@ -15,13 +15,13 @@ func addEvent(event string) {
 }
 
 type logic struct {
-	config    common.ControllerConfig
+	config    Config
 	connector *connector
 	state     *state
 	sct       *sct.SCT
 }
 
-func newLogic(config common.ControllerConfig, connector *connector, state *state) (*logic, error) {
+func newLogic(config Config, connector *connector, state *state) (*logic, error) {
 	l := logic{config: config, connector: connector, state: state}
 
 	/*s1, err := os.Open("resources/simpleController1.xml")
