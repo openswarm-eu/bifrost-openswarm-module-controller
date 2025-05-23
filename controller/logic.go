@@ -66,10 +66,12 @@ func (l *logic) start(ctx context.Context) error {
 
 	l.sct.Start(ctx)
 
+	leaderCh := l.energyCommunityConnector.leaderCh(ctx)
+
 	go func() {
 		for {
 			select {
-			case v := <-l.energyCommunityConnector.leaderCh(ctx):
+			case v := <-leaderCh:
 				if v {
 					log.Println("controller - I'm leader, starting logic")
 					l.state.leader = true
@@ -100,7 +102,7 @@ func (l *logic) start(ctx context.Context) error {
 }*/
 
 func (l *logic) calculateSetPointsWithoutLimits() {
-	for _, sensor := range l.state.sensors {
+	for _, sensor := range l.state.toplogy.sensors {
 		sensor.limit = math.MaxFloat64
 	}
 
@@ -108,6 +110,6 @@ func (l *logic) calculateSetPointsWithoutLimits() {
 }
 
 func (l *logic) calculateSetPointsWithLimits() {
-	l.state.rootSensor.reset()
-	l.state.rootSensor.setSetPoints()
+	l.state.toplogy.rootSensor.reset()
+	l.state.toplogy.rootSensor.setSetPoints()
 }

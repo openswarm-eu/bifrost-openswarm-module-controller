@@ -17,8 +17,6 @@ type dsoConnector struct {
 	ddaConnector             *dda.Connector
 	energyCommunityConnector *energyCommunityConnector
 	state                    *state
-
-	ctx context.Context
 }
 
 func newDsoConnector(energyCommunityId string, ddaConnector *dda.Connector, energyCommunityConnector *energyCommunityConnector, state *state) *dsoConnector {
@@ -31,14 +29,51 @@ func newDsoConnector(energyCommunityId string, ddaConnector *dda.Connector, ener
 }
 
 func (c *dsoConnector) start(ctx context.Context) error {
-	c.ctx = ctx
+
+	topologyUpdatechannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.AppendId(common.TOPOLOGY_UPDATE_ACTION, c.energyCommunityId)})
+	if err != nil {
+		return err
+	}
+
+	/*requestFlowProposalChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.NEW_ROUND_EVENT})
+	if err != nil {
+		return err
+	}
+
+	sensorLimitChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SENSOR_LIMITS_EVENT, c.energyCommunityId)})
+	if err != nil {
+		return err
+	}*/
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case topologyUpdate := <-topologyUpdatechannel:
+
+				var topologyMessage common.TopologyMessage
+				err := json.Unmarshal([]byte(topologyUpdate.Params), &topologyMessage)
+				if err != nil {
+					log.Println("controller - error unmarshalling topology update message:", err)
+					continue
+				}
+
+				log.Printf("controller - received topology update message %s", topologyMessage.Topology)
+
+				c.energyCommunityConnector.writeTopologyToLog(topologyMessage, func(data []byte) {
+					topologyUpdate.Callback(api.ActionResult{Data: data})
+				})
+			}
+		}
+	}()
 
 	return nil
 }
 
 func (c *dsoConnector) stop() {
 	if c.state.registeredAtDso && c.state.clusterMembers == 1 {
-		registerMessage := common.DdaRegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now().Unix()}
+		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now().Unix()}
 		data, _ := json.Marshal(registerMessage)
 
 		for {
@@ -68,7 +103,7 @@ func (c *dsoConnector) stop() {
 
 func (c *dsoConnector) registerAtDso(ctx context.Context) {
 	go func() {
-		registerMessage := common.DdaRegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now().Unix()}
+		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now().Unix()}
 		data, _ := json.Marshal(registerMessage)
 
 		for {

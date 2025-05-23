@@ -56,10 +56,12 @@ func (l *logic) start(ctx context.Context) error {
 
 	//l.sct.Start(ctx)
 
+	leaderCh := l.connector.leaderCh(ctx)
+
 	go func() {
 		for {
 			select {
-			case v := <-l.connector.leaderCh(ctx):
+			case v := <-leaderCh:
 				if v {
 					log.Println("dso - I'm leader, starting logic")
 					l.state.leader = true

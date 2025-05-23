@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"code.siemens.com/energy-community-controller/dda"
-	"github.com/coatyio/dda/services/com/api"
 )
 
 type Controller struct {
@@ -18,14 +17,9 @@ type Controller struct {
 
 func NewController(config Config, energyCommunityId string, ddaConnectorEnergyCommunity *dda.Connector, ddaConnectorDso *dda.Connector) (*Controller, error) {
 	state := &state{
-		leader:              false,
-		registeredAtDso:     false,
-		sensors:             make(map[string]*sensor),
-		chargers:            make(map[string]*component),
-		pvs:                 make(map[string]*component),
-		rootSensor:          &sensor{id: "root", childSensors: make([]*sensor, 0)},
-		registerCallbacks:   make(map[string]api.ActionCallback),
-		deregisterCallbacks: make(map[string]api.ActionCallback),
+		leader:          false,
+		registeredAtDso: false,
+		toplogy:         newToplogy(),
 	}
 	energyCommunityConnector := newEnergyCommunityConnector(config, energyCommunityId, ddaConnectorEnergyCommunity, state)
 	dsoConnector := newDsoConnector(energyCommunityId, ddaConnectorDso, energyCommunityConnector, state)

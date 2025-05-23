@@ -19,6 +19,7 @@ type energyCommunityConnector struct {
 	energyCommunityId string
 	ddaConnector      *dda.Connector
 	state             *state
+	callbackManager   *callbackManager
 
 	ctx context.Context
 }
@@ -29,6 +30,7 @@ func newEnergyCommunityConnector(config Config, energyCommunityId string, ddaCon
 		energyCommunityId: energyCommunityId,
 		ddaConnector:      ddaConnector,
 		state:             state,
+		callbackManager:   newCallbackManager(),
 	}
 }
 
@@ -41,16 +43,6 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 	}
 
 	deregisterNodeChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.DEREGISTER_ACTION})
-	if err != nil {
-		return err
-	}
-
-	requestFlowProposalChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.NEW_ROUND_EVENT})
-	if err != nil {
-		return err
-	}
-
-	sensorLimitChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SENSOR_LIMITS_EVENT, c.energyCommunityId)})
 	if err != nil {
 		return err
 	}
@@ -76,13 +68,15 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 				}
 
 				log.Println("controller - got register node")
-				var msg common.DdaRegisterNodeMessage
+				var msg common.RegisterNodeMessage
 				if err := json.Unmarshal(registerNode.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register message, %s", err)
 					continue
 				}
 
-				c.state.registerCallbacks[msg.NodeId] = registerNode.Callback
+				c.callbackManager.addCallback(msg.NodeId, func(data []byte) {
+					registerNode.Callback(api.ActionResult{Data: data})
+				})
 				c.writeNodeToLog(msg)
 			case deregisterNode := <-deregisterNodeChannel:
 				if !c.state.leader {
@@ -90,13 +84,15 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 				}
 
 				log.Println("controller - got deregister node")
-				var msg common.DdaRegisterNodeMessage
+				var msg common.RegisterNodeMessage
 				if err := json.Unmarshal(deregisterNode.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister message, %s", err)
 					continue
 				}
 
-				c.state.deregisterCallbacks[msg.NodeId] = deregisterNode.Callback
+				c.callbackManager.addCallback(msg.NodeId, func(data []byte) {
+					deregisterNode.Callback(api.ActionResult{Data: data})
+				})
 				c.removeNodeFromLog(msg)
 			case stateChange := <-sc:
 				if strings.HasPrefix(stateChange.Key, NODE_PREFIX) {
@@ -109,81 +105,35 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 							continue
 						}
 
-						if _, ok := c.state.sensors[msg.SensorId]; !ok {
-							c.state.sensors[msg.SensorId] = &sensor{id: msg.SensorId, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
-						}
-
 						if msg.NodeType == common.PV_NODE_TPYE {
-							c.state.sensors[msg.SensorId].pvs = append(c.state.sensors[msg.SensorId].pvs, &component{id: msg.Id, demand: 0, setPoint: 0})
+							c.state.toplogy.addPV(msg.Id, msg.SensorId)
 						} else if msg.NodeType == common.CHARGER_NODE_TYPE {
-							c.state.sensors[msg.SensorId].chargers = append(c.state.sensors[msg.SensorId].chargers, &component{id: msg.Id, demand: 0, setPoint: 0})
+							c.state.toplogy.sensors[msg.SensorId].chargers = append(c.state.toplogy.sensors[msg.SensorId].chargers, &component{id: msg.Id, demand: 0, setPoint: 0})
 						}
 
-						if c.state.leader {
-							if callback, ok := c.state.registerCallbacks[nodeId]; ok {
-								callback(api.ActionResult{Data: []byte(nodeId)})
-								delete(c.state.registerCallbacks, nodeId)
-							}
+						if callback, ok := c.callbackManager.getCallback(nodeId); ok {
+							callback([]byte(nodeId))
 						}
 					} else {
-						for _, sensor := range c.state.sensors {
-							found := false
-							for i, pv := range sensor.pvs {
-								if pv.id == nodeId {
-									sensor.pvs = append(sensor.pvs[:i], sensor.pvs[i+1:]...)
-									found = true
-									break
-								}
-							}
-
-							if !found {
-								for i, charger := range sensor.chargers {
-									if charger.id == nodeId {
-										sensor.chargers = append(sensor.chargers[:i], sensor.chargers[i+1:]...)
-										break
-									}
-								}
-							}
-
-							if found && len(sensor.pvs) != 0 && len(sensor.chargers) != 0 && len(sensor.childSensors) != 0 {
-								delete(c.state.sensors, sensor.id)
-							}
-
-							if c.state.leader {
-								if callback, ok := c.state.deregisterCallbacks[nodeId]; ok {
-									callback(api.ActionResult{Data: []byte(nodeId)})
-									delete(c.state.deregisterCallbacks, nodeId)
-								}
-							}
+						if callback, ok := c.callbackManager.getCallback(nodeId); ok {
+							callback([]byte(nodeId))
 						}
 					}
 				} else if stateChange.Key == REGISTER_DSO_KEY {
-					if stateChange.Op == stateAPI.InputOpSet {
-						c.state.registeredAtDso = true
+					c.state.registeredAtDso = true
+				} else if stateChange.Key == TOPOLOGY_KEY {
+					var topologyEntry topologyLogEntry
+					if err := json.Unmarshal(stateChange.Value, &topologyEntry); err != nil {
+						log.Printf("Could not unmarshal incoming topology message, %s", err)
+						continue
+					}
+
+					c.state.toplogy.buildTopology(topologyEntry.Children)
+
+					if callback, ok := c.callbackManager.getCallback(topologyEntry.Id); ok {
+						callback([]byte(topologyEntry.Id))
 					}
 				}
-			case <-requestFlowProposalChannel:
-				if c.state.leader {
-					addEvent("newRound")
-				}
-			case sensorLimits := <-sensorLimitChannel:
-				if !c.state.leader {
-					continue
-				}
-
-				var msg common.SensorLimitsMessage
-				if err := json.Unmarshal(sensorLimits.Data, &msg); err != nil {
-					log.Printf("Could not unmarshal incoming sensor limits message, %s", err)
-					continue
-				}
-
-				for _, limit := range msg.Limits {
-					if sensor, ok := c.state.sensors[limit.SensorId]; ok {
-						sensor.limit = limit.Limit
-					}
-				}
-
-				addEvent("sensorLimitsReceived")
 			case membershipChange := <-mc:
 				if membershipChange.Joined {
 					c.state.clusterMembers++
@@ -202,10 +152,10 @@ func (c *energyCommunityConnector) leaderCh(ctx context.Context) <-chan bool {
 }
 
 func (c *energyCommunityConnector) getData() {
-	for _, pv := range c.state.pvs {
+	for _, pv := range c.state.toplogy.pvs {
 		pv.demand = 0
 	}
-	for _, charger := range c.state.chargers {
+	for _, charger := range c.state.toplogy.chargers {
 		charger.demand = 0
 	}
 
@@ -237,7 +187,7 @@ func (c *energyCommunityConnector) getData() {
 				}
 
 				if value.Timestamp.After(startTime) {
-					if pv, ok := c.state.pvs[value.Id]; ok {
+					if pv, ok := c.state.toplogy.pvs[value.Id]; ok {
 						pv.demand = value.Value
 					}
 				}
@@ -253,7 +203,7 @@ func (c *energyCommunityConnector) getData() {
 				}
 
 				if value.Timestamp.After(startTime) {
-					if charger, ok := c.state.pvs[value.Id]; ok {
+					if charger, ok := c.state.toplogy.pvs[value.Id]; ok {
 						charger.demand = value.Value
 					}
 				}
@@ -267,7 +217,7 @@ func (c *energyCommunityConnector) getData() {
 	}()
 }
 
-func (c *energyCommunityConnector) writeNodeToLog(registerMessage common.DdaRegisterNodeMessage) error {
+func (c *energyCommunityConnector) writeNodeToLog(registerMessage common.RegisterNodeMessage) error {
 	data, _ := json.Marshal(node{Id: registerMessage.NodeId, SensorId: registerMessage.SensorId, NodeType: registerMessage.NodeType})
 
 	input := stateAPI.Input{
@@ -279,7 +229,7 @@ func (c *energyCommunityConnector) writeNodeToLog(registerMessage common.DdaRegi
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
-func (c *energyCommunityConnector) removeNodeFromLog(registerMessage common.DdaRegisterNodeMessage) error {
+func (c *energyCommunityConnector) removeNodeFromLog(registerMessage common.RegisterNodeMessage) error {
 	input := stateAPI.Input{
 		Op:  stateAPI.InputOpDelete,
 		Key: NODE_PREFIX + registerMessage.NodeId,
@@ -298,6 +248,20 @@ func (c *energyCommunityConnector) writeSuccessfullDsoRegistrationToLog() error 
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
+func (c *energyCommunityConnector) writeTopologyToLog(toplogy common.TopologyMessage, callback func(data []byte)) error {
+	id := uuid.NewString()
+	c.callbackManager.addCallback(id, callback)
+
+	data, _ := json.Marshal(topologyLogEntry{Id: id, Children: toplogy.Topology})
+	input := stateAPI.Input{
+		Op:    stateAPI.InputOpSet,
+		Key:   TOPOLOGY_KEY,
+		Value: data,
+	}
+
+	return c.ddaConnector.ProposeInput(c.ctx, &input)
+}
+
 func (c *energyCommunityConnector) sendFlows() {
 	/*flowProposals := make([]common.FlowProposal, len(c.state.sensors))
 	for _, sensor := range c.state.sensors {
@@ -311,7 +275,7 @@ func (c *energyCommunityConnector) sendFlows() {
 }
 
 func (c *energyCommunityConnector) sendSetPoints() {
-	for _, charger := range c.state.chargers {
+	for _, charger := range c.state.toplogy.chargers {
 		msg := common.Value{Message: common.Message{Id: charger.id, Timestamp: time.Now()}, Value: charger.setPoint}
 		data, _ := json.Marshal(msg)
 		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_POINT, charger.id), Source: c.energyCommunityId, Id: uuid.NewString(), Data: data}); err != nil {
@@ -319,7 +283,7 @@ func (c *energyCommunityConnector) sendSetPoints() {
 		}
 	}
 
-	for _, pv := range c.state.pvs {
+	for _, pv := range c.state.toplogy.pvs {
 		msg := common.Value{Message: common.Message{Id: pv.id, Timestamp: time.Now()}, Value: pv.setPoint}
 		data, _ := json.Marshal(msg)
 		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_POINT, pv.id), Source: c.energyCommunityId, Id: uuid.NewString(), Data: data}); err != nil {
@@ -331,9 +295,15 @@ func (c *energyCommunityConnector) sendSetPoints() {
 const NODE_PREFIX = "node_"
 
 const REGISTER_DSO_KEY = "registered"
+const TOPOLOGY_KEY = "topology"
 
 type node struct {
 	Id       string
 	SensorId string
 	NodeType string
+}
+
+type topologyLogEntry struct {
+	Id       string
+	Children map[string][]string
 }

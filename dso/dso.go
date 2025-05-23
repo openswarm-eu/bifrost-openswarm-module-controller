@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"code.siemens.com/energy-community-controller/dda"
-	"github.com/coatyio/dda/services/com/api"
 )
 
 type Dso struct {
@@ -12,15 +11,10 @@ type Dso struct {
 	logic     *logic
 }
 
-// fix which type of config we need
 func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 	state := &state{
-		leader:                             false,
-		topology:                           topology{Version: 0, Sensors: make(map[string][]string)},
-		registerCallbacks:                  make(map[string]api.ActionCallback),
-		deregisterCallbacks:                make(map[string]api.ActionCallback),
-		registerEnergyCommunityCallbacks:   make(map[string]api.ActionCallback),
-		deregisterEnergyCommunityCallbacks: make(map[string]api.ActionCallback),
+		leader:   false,
+		topology: topology{Version: 0, Sensors: make(map[string][]string)},
 	}
 
 	connector := newConnector(ddaConnector, state)
@@ -32,13 +26,17 @@ func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 	return &Dso{connector: connector, logic: logic}, nil
 }
 
-func (c *Dso) Start(ctx context.Context) error {
-	if err := c.connector.start(ctx); err != nil {
+func (d *Dso) Start(ctx context.Context) error {
+	if err := d.connector.start(ctx); err != nil {
 		return err
 	}
-	if err := c.logic.start(ctx); err != nil {
+	if err := d.logic.start(ctx); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (d *Dso) Stop() {
+	d.connector.stop()
 }
