@@ -180,7 +180,9 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 	for {
 		log.Println("pv - trying to register node")
 
-		registerContext, registerCancel := context.WithCancel(ctx)
+		registerContext, registerCancel := context.WithTimeout(
+			ctx,
+			time.Duration(5*time.Second))
 
 		result, err := ddaConnector.PublishAction(registerContext, api.Action{Type: common.REGISTER_ACTION, Id: uuid.NewString(), Source: nodeId, Params: data})
 		if err != nil {
@@ -192,11 +194,11 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 			log.Println("pv - node registered")
 			registerCancel()
 			return
-		case <-time.After(5 * time.Second):
-			registerCancel()
 		case <-registerContext.Done():
-			registerCancel()
-			return
+			if registerContext.Err() == context.Canceled {
+				registerCancel()
+				return
+			}
 		}
 	}
 }
@@ -208,7 +210,9 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string,
 	for {
 		log.Println("pv - trying to deregister node")
 
-		deregisterContext, deregisterCancel := context.WithCancel(ctx)
+		deregisterContext, deregisterCancel := context.WithTimeout(
+			ctx,
+			time.Duration(5*time.Second))
 
 		result, err := ddaConnector.PublishAction(deregisterContext, api.Action{Type: common.DEREGISTER_ACTION, Id: uuid.NewString(), Source: nodeId, Params: data})
 		if err != nil {
@@ -220,11 +224,11 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string,
 			log.Println("pv - node deregistered")
 			deregisterCancel()
 			return
-		case <-time.After(5 * time.Second):
-			deregisterCancel()
 		case <-deregisterContext.Done():
-			deregisterCancel()
-			return
+			if deregisterContext.Err() == context.Canceled {
+				deregisterCancel()
+				return
+			}
 		}
 	}
 }
