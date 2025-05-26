@@ -108,7 +108,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 						if msg.NodeType == common.PV_NODE_TPYE {
 							c.state.toplogy.addPV(msg.Id, msg.SensorId)
 						} else if msg.NodeType == common.CHARGER_NODE_TYPE {
-							c.state.toplogy.sensors[msg.SensorId].chargers = append(c.state.toplogy.sensors[msg.SensorId].chargers, &component{id: msg.Id, demand: 0, setPoint: 0})
+							c.state.toplogy.addCharger(msg.Id, msg.SensorId)
 						}
 
 						if callback, ok := c.callbackManager.getCallback(nodeId); ok {
