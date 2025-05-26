@@ -10,6 +10,7 @@ type state struct {
 	//flowProposals []common.FlowProposalsMessage
 
 	topology topology
+	sensors  map[string]sensor
 }
 
 type energyCommunity struct {
@@ -20,6 +21,11 @@ type energyCommunity struct {
 type topology struct {
 	Version int
 	Sensors map[string][]string //sensorId -> childSensorIds
+}
+
+type sensor struct {
+	id          string
+	measurement float64
 }
 
 func (s *state) removeEnergyCommunity(energyCommunityId string) {

@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/dda"
 	"github.com/coatyio/dda/services/com/api"
 	stateAPI "github.com/coatyio/dda/services/state/api"
+	"github.com/google/uuid"
 )
 
 type connector struct {
+	config       Config
 	ddaConnector *dda.Connector
 	state        *state
 
@@ -24,8 +27,9 @@ type connector struct {
 	ctx context.Context
 }
 
-func newConnector(ddaConnector *dda.Connector, state *state) *connector {
+func newConnector(config Config, ddaConnector *dda.Connector, state *state) *connector {
 	c := connector{
+		config:                             config,
 		ddaConnector:                       ddaConnector,
 		state:                              state,
 		registerCallbacks:                  make(map[string]api.ActionCallback),
@@ -260,7 +264,43 @@ func (c *connector) triggerNewRound() {
 }
 
 func (c *connector) getSensorData() {
+	for _, sensor := range c.state.sensors {
+		sensor.measurement = 0
+	}
 
+	go func() {
+		ctx, cancel := context.WithCancel(c.ctx)
+
+		sensorResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_SENSOR_MEASUREMENT_ACTION, Id: uuid.NewString(), Source: "dso"})
+		if err != nil {
+			log.Printf("dso - could not get sensor response - %s", err)
+			cancel()
+			return
+		}
+
+		// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
+		startTime := time.Now().Add(-1 * time.Second)
+		go func() {
+			for sensorResponse := range sensorResponses {
+				var value common.Value
+				if err := json.Unmarshal(sensorResponse.Data, &value); err != nil {
+					log.Printf("Could not unmarshal incoming sensor message, %s", err)
+					continue
+				}
+
+				if value.Timestamp.After(startTime) {
+					if sensor, ok := c.state.sensors[value.Id]; ok {
+						sensor.measurement = value.Value
+					}
+				}
+			}
+		}()
+
+		<-time.After(c.config.WaitTimeForInputs)
+		cancel()
+
+		addEvent("dataReceived")
+	}()
 }
 
 func (c *connector) sendLimits() {

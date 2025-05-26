@@ -17,7 +17,7 @@ func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 		topology: topology{Version: 0, Sensors: make(map[string][]string)},
 	}
 
-	connector := newConnector(ddaConnector, state)
+	connector := newConnector(config, ddaConnector, state)
 	logic, err := newLogic(config, connector, state)
 	if err != nil {
 		return nil, err

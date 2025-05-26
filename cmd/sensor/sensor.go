@@ -93,7 +93,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	measurementRequestChannel, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.GET_MEASUREMENT_ACTION})
+	measurementRequestChannel, err := ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.GET_SENSOR_MEASUREMENT_ACTION})
 	if err != nil {
 		log.Fatalln(err)
 	}

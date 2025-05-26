@@ -69,7 +69,7 @@ const DEREGISTER_ENERGY_COMMUNITY_ACTION = "com.siemens.openswarm.deregisterener
 const TOPOLOGY_UPDATE_ACTION = "com.siemens.openswarm.topologyupdate"
 const GET_CHARGER_DEMAND_ACTION = "com.siemens.openswarm.chargerdemand"
 const GET_PV_DEMAND_ACTION = "com.siemens.openswarm.pvdemand"
-const GET_MEASUREMENT_ACTION = "com.siemens.openswarm.measurement"
+const GET_SENSOR_MEASUREMENT_ACTION = "com.siemens.openswarm.measurement"
 const SET_POINT = "com.siemens.openswarm.setpoint"
 
 // const NEW_ROUND_EVENT = "com.siemens.openswarm.newround"
