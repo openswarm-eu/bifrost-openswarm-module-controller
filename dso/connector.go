@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/dda"
 	"github.com/coatyio/dda/services/com/api"
 	stateAPI "github.com/coatyio/dda/services/state/api"
+	"github.com/google/uuid"
 )
 
 type connector struct {
@@ -262,7 +264,7 @@ func (c *connector) triggerNewRound() {
 }
 
 func (c *connector) getSensorData() {
-	/*for _, sensor := range c.state.sensors {
+	for _, sensor := range c.state.localSenorInformations {
 		sensor.measurement = 0
 	}
 
@@ -287,7 +289,7 @@ func (c *connector) getSensorData() {
 				}
 
 				if value.Timestamp.After(startTime) {
-					if sensor, ok := c.state.sensors[value.Id]; ok {
+					if sensor, ok := c.state.localSenorInformations[value.Id]; ok {
 						sensor.measurement = value.Value
 					}
 				}
@@ -298,7 +300,7 @@ func (c *connector) getSensorData() {
 		cancel()
 
 		addEvent("dataReceived")
-	}()*/
+	}()
 }
 
 func (c *connector) sendLimits() {

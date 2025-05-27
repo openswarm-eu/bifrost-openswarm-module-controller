@@ -10,10 +10,10 @@ type state struct {
 	topology          topology
 
 	// local only
-	leader      bool
-	newTopology topology
-	//sensors map[string]sensor
-	//flowProposals []common.FlowProposalsMessage
+	leader                 bool
+	newTopology            topology
+	localSenorInformations map[string]localSenorInformation
+	ecLimits               map[string]common.EnergyCommunitySensorLimitMessage // energyCommunityId -> FlowSetPointsMessage
 }
 
 type energyCommunity struct {
@@ -29,6 +29,12 @@ type topology struct {
 type sensor struct {
 	limit            float64
 	childrenSensorId []string
+}
+
+type localSenorInformation struct {
+	measurement    float64
+	sumECLimits    float64
+	ecFlowProposal map[string]common.FlowProposal // energyCommunityId --> FlowProposal
 }
 
 func (s *state) removeEnergyCommunity(energyCommunityId string) {

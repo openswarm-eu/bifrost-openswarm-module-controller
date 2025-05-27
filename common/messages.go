@@ -4,42 +4,8 @@ import (
 	"time"
 )
 
-type Message struct {
-	Id        string
-	Timestamp time.Time
-}
-
-type Value struct {
-	Message
-	Value float64
-}
-
-/*type FlowProposalsMessage struct {
-	LeaderId  string
-	Proposals []FlowProposal
-	Timestamp time.Time
-}
-
-type FlowProposal struct {
-	SensorId      string
-	Flow          float64
-	NumberOfNodes int
-}
-
-type SensorLimitsMessage struct {
-	Limits    []SensorLimit
-	Timestamp time.Time
-}
-
-type SensorLimit struct {
-	SensorId string
-	Limit    float64
-}*/
-
-type TopologyMessage struct {
-	Topology  map[string][]string // parentSensorId -> []childSensorId
-	Timestamp int64
-}
+const CHARGER_NODE_TYPE = "charger"
+const PV_NODE_TPYE = "pv"
 
 type RegisterNodeMessage struct {
 	NodeId    string
@@ -60,8 +26,35 @@ type RegisterEnergyCommunityMessage struct {
 	Timestamp         int64
 }
 
-const CHARGER_NODE_TYPE = "charger"
-const PV_NODE_TPYE = "pv"
+type Message struct {
+	Id        string
+	Timestamp time.Time
+}
+
+type Value struct {
+	Message
+	Value float64
+}
+
+type FlowProposalsMessage struct {
+	EnergyCommunityId string
+	Proposals         map[string]FlowProposal // sensorId -> FlowProposal
+	Timestamp         time.Time
+}
+
+type FlowProposal struct {
+	Flow          float64
+	NumberOfNodes int
+}
+
+type EnergyCommunitySensorLimitMessage struct {
+	SensorLimits map[string]float64 // sensorId -> limit
+}
+
+type TopologyMessage struct {
+	Topology  map[string][]string // parentSensorId -> []childSensorId
+	Timestamp int64
+}
 
 const REGISTER_ACTION = "com.siemens.openswarm.register"
 const DEREGISTER_ACTION = "com.siemens.openswarm.deregister"
