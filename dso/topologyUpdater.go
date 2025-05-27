@@ -54,7 +54,12 @@ func (tu *energyCommunityTopologyUpdater) sendUpdatesToEnergyCommunities() {
 				context.Background(),
 				time.Duration(1*time.Second))
 
-			message := common.TopologyMessage{Topology: tu.state.topology.Sensors, Timestamp: time.Now().Unix()}
+			topology := make(map[string][]string)
+			for sensorId, sensor := range tu.state.topology.Sensors {
+				topology[sensorId] = sensor.childrenSensorId
+			}
+
+			message := common.TopologyMessage{Topology: topology, Timestamp: time.Now().Unix()}
 			data, _ := json.Marshal(message)
 
 			for _, energyCommunity := range energyCommunityWithOldTopology {

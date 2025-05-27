@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"time"
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/dda"
 	"github.com/coatyio/dda/services/com/api"
 	stateAPI "github.com/coatyio/dda/services/state/api"
-	"github.com/google/uuid"
 )
 
 type connector struct {
@@ -157,7 +155,7 @@ func (c *connector) start(ctx context.Context) error {
 						log.Printf("Could not unmarshal incoming topology state change message, %s", err)
 						continue
 					}
-					c.state.topology = topology
+					c.state.newTopology = topology
 					if !c.state.leader {
 						continue
 					}
@@ -264,7 +262,7 @@ func (c *connector) triggerNewRound() {
 }
 
 func (c *connector) getSensorData() {
-	for _, sensor := range c.state.sensors {
+	/*for _, sensor := range c.state.sensors {
 		sensor.measurement = 0
 	}
 
@@ -300,7 +298,7 @@ func (c *connector) getSensorData() {
 		cancel()
 
 		addEvent("dataReceived")
-	}()
+	}()*/
 }
 
 func (c *connector) sendLimits() {

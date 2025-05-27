@@ -5,12 +5,15 @@ import (
 )
 
 type state struct {
-	leader            bool
+	// exchanged via raft
 	energyCommunities []*energyCommunity
-	//flowProposals []common.FlowProposalsMessage
+	topology          topology
 
-	topology topology
-	sensors  map[string]sensor
+	// local only
+	leader      bool
+	newTopology topology
+	//sensors map[string]sensor
+	//flowProposals []common.FlowProposalsMessage
 }
 
 type energyCommunity struct {
@@ -20,12 +23,12 @@ type energyCommunity struct {
 
 type topology struct {
 	Version int
-	Sensors map[string][]string //sensorId -> childSensorIds
+	Sensors map[string]sensor
 }
 
 type sensor struct {
-	id          string
-	measurement float64
+	limit            float64
+	childrenSensorId []string
 }
 
 func (s *state) removeEnergyCommunity(energyCommunityId string) {
@@ -39,12 +42,12 @@ func (s *state) removeEnergyCommunity(energyCommunityId string) {
 func (s *state) cloneTopology() topology {
 	result := topology{
 		Version: s.topology.Version,
-		Sensors: make(map[string][]string),
+		Sensors: make(map[string]sensor),
 	}
 
-	for sensorId, childSensorIds := range s.topology.Sensors {
-		result.Sensors[sensorId] = make([]string, len(childSensorIds))
-		copy(result.Sensors[sensorId], childSensorIds)
+	for sensorId, s := range s.topology.Sensors {
+		result.Sensors[sensorId] = sensor{limit: s.limit, childrenSensorId: make([]string, len(s.childrenSensorId))}
+		copy(result.Sensors[sensorId].childrenSensorId, s.childrenSensorId)
 	}
 
 	return result
@@ -52,7 +55,7 @@ func (s *state) cloneTopology() topology {
 
 func addNodeToTopology(registerSensorMessage common.RegisterSensorMessage, topology *topology) {
 	if _, ok := topology.Sensors[registerSensorMessage.SensorId]; !ok {
-		topology.Sensors[registerSensorMessage.SensorId] = make([]string, 0)
+		topology.Sensors[registerSensorMessage.SensorId] = sensor{childrenSensorId: make([]string, 0)}
 	}
 
 	if registerSensorMessage.ParentSensorId == "" {
@@ -60,10 +63,12 @@ func addNodeToTopology(registerSensorMessage common.RegisterSensorMessage, topol
 	}
 
 	if _, ok := topology.Sensors[registerSensorMessage.ParentSensorId]; !ok {
-		topology.Sensors[registerSensorMessage.ParentSensorId] = make([]string, 0)
+		topology.Sensors[registerSensorMessage.ParentSensorId] = sensor{childrenSensorId: make([]string, 0)}
 	}
 
-	topology.Sensors[registerSensorMessage.ParentSensorId] = append(topology.Sensors[registerSensorMessage.ParentSensorId], registerSensorMessage.SensorId)
+	parentSensor := topology.Sensors[registerSensorMessage.ParentSensorId]
+	parentSensor.childrenSensorId = append(parentSensor.childrenSensorId, registerSensorMessage.SensorId)
+	topology.Sensors[registerSensorMessage.ParentSensorId] = parentSensor
 }
 
 func removeNodeFromTopology(registerSensorMessage common.RegisterSensorMessage, topology *topology) {
@@ -81,10 +86,11 @@ func removeNodeFromTopology(registerSensorMessage common.RegisterSensorMessage, 
 		return
 	}
 
-	childIds := topology.Sensors[registerSensorMessage.ParentSensorId]
-	for i, childId := range childIds {
+	parentSensor := topology.Sensors[registerSensorMessage.ParentSensorId]
+	childrenSensorId := parentSensor.childrenSensorId
+	for i, childId := range childrenSensorId {
 		if childId == registerSensorMessage.SensorId {
-			topology.Sensors[registerSensorMessage.ParentSensorId] = append(childIds[:i], childIds[i+1:]...)
+			parentSensor.childrenSensorId = append(childrenSensorId[:i], childrenSensorId[i+1:]...)
 			break
 		}
 	}

@@ -85,6 +85,7 @@ func (l *logic) start(ctx context.Context) error {
 }
 
 func (l *logic) newRound() {
+	l.state.topology = l.state.newTopology
 	//addEvent("newRound")
 }
 

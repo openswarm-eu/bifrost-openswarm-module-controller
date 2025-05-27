@@ -51,6 +51,7 @@ type RegisterNodeMessage struct {
 type RegisterSensorMessage struct {
 	SensorId       string
 	ParentSensorId string
+	Limit          float64
 	Timestamp      int64
 }
 

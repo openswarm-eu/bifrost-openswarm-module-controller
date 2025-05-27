@@ -22,11 +22,13 @@ func main() {
 
 	var sensorId string
 	var parentSensorId string
+	var limit float64
 	var url string
 	bootstrap := flag.Bool("b", false, "bootstrap raft")
 	leadershipElectionEnabled := flag.Bool("l", false, "participate in leader election")
 	flag.StringVar(&sensorId, "id", uuid.NewString(), "sensor id")
 	flag.StringVar(&parentSensorId, "parentId", "", "parent sensor id")
+	flag.Float64Var(&limit, "limit", 0.0, "sensor limit")
 	flag.StringVar(&url, "url", "tcp://localhost:1883", "mqtt url")
 	flag.Parse()
 
@@ -86,7 +88,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	register(ctx, ddaConnector, sensorId, parentSensorId)
+	register(ctx, ddaConnector, sensorId, parentSensorId, limit)
 
 	measurementChannel, err := mqttConnector.SubscribeToSensorMeasurements(ctx)
 	if err != nil {
@@ -116,8 +118,8 @@ func main() {
 	}
 }
 
-func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string) {
-	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Timestamp: time.Now().Unix()}
+func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, limit float64) {
+	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Limit: limit, Timestamp: time.Now().Unix()}
 	data, _ := json.Marshal(registerMessage)
 
 	for {
