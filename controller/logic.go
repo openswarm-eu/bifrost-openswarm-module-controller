@@ -49,7 +49,7 @@ func newLogic(config Config, energyCommunityConnector *energyCommunityConnector,
 	callbacks["getData"] = energyCommunityConnector.getData
 	callbacks["calculateSetPointsWithoutLimits"] = l.calculateSetPointsWithoutLimits
 	callbacks["calculateSetPointsWithLimits"] = l.calculateSetPointsWithLimits
-	callbacks["sendFlows"] = energyCommunityConnector.sendFlows
+	callbacks["sendFlows"] = dsoConnector.sendFlowProposal
 	callbacks["sendSetPoints"] = energyCommunityConnector.sendSetPoints
 	if sct, err := sct.NewSCT([]io.Reader{s1, s2}, callbacks); err != nil {
 		return nil, err
@@ -102,10 +102,7 @@ func (l *logic) start(ctx context.Context) error {
 }*/
 
 func (l *logic) calculateSetPointsWithoutLimits() {
-	for _, sensor := range l.state.toplogy.sensors {
-		sensor.limit = math.MaxFloat64
-	}
-
+	l.state.toplogy.setAllSensorLimits(math.MaxFloat64)
 	l.calculateSetPointsWithLimits()
 }
 

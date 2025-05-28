@@ -105,3 +105,18 @@ func (t *toplogy) buildTopology(topology map[string][]string) {
 		t.rootSensor.childSensors = append(t.rootSensor.childSensors, sensor)
 	}
 }
+
+func (t *toplogy) setSensorLimit(sensorId string, limit float64) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	if sensor, ok := t.sensors[sensorId]; ok {
+		sensor.limit = limit
+	}
+}
+
+func (t *toplogy) setAllSensorLimits(limit float64) {
+	for _, sensor := range t.sensors {
+		sensor.limit = limit
+	}
+}

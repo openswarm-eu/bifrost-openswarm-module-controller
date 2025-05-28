@@ -17,7 +17,10 @@ type dsoConnector struct {
 	ddaConnector             *dda.Connector
 	energyCommunityConnector *energyCommunityConnector
 	state                    *state
+	flowProposalCallback     api.ActionCallback
 }
+
+const flow_proposal_callback_key = "flowProposal"
 
 func newDsoConnector(energyCommunityId string, ddaConnector *dda.Connector, energyCommunityConnector *energyCommunityConnector, state *state) *dsoConnector {
 	return &dsoConnector{
@@ -30,28 +33,27 @@ func newDsoConnector(energyCommunityId string, ddaConnector *dda.Connector, ener
 
 func (c *dsoConnector) start(ctx context.Context) error {
 
-	topologyUpdatechannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.AppendId(common.TOPOLOGY_UPDATE_ACTION, c.energyCommunityId)})
+	topologyUpdateChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.AppendId(common.TOPOLOGY_UPDATE_ACTION, c.energyCommunityId)})
 	if err != nil {
 		return err
 	}
 
-	/*requestFlowProposalChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.NEW_ROUND_EVENT})
+	requestFlowProposalChannel, err := c.ddaConnector.SubscribeAction(ctx, api.SubscriptionFilter{Type: common.AppendId(common.GET_FLOW_PROPOSAL_ACTION, c.energyCommunityId)})
 	if err != nil {
 		return err
 	}
 
-	sensorLimitChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SENSOR_LIMITS_EVENT, c.energyCommunityId)})
+	setSensorLimitsChannel, err := c.ddaConnector.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SET_SENSOR_LIMITS_EVENT, c.energyCommunityId)})
 	if err != nil {
 		return err
-	}*/
+	}
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case topologyUpdate := <-topologyUpdatechannel:
-
+			case topologyUpdate := <-topologyUpdateChannel:
 				var topologyMessage common.TopologyMessage
 				err := json.Unmarshal([]byte(topologyUpdate.Params), &topologyMessage)
 				if err != nil {
@@ -64,6 +66,24 @@ func (c *dsoConnector) start(ctx context.Context) error {
 				c.energyCommunityConnector.writeTopologyToLog(topologyMessage, func(data []byte) {
 					topologyUpdate.Callback(api.ActionResult{Data: data})
 				})
+			case requestFlowProposal := <-requestFlowProposalChannel:
+				c.flowProposalCallback = requestFlowProposal.Callback
+				addEvent("flowProposalRequest")
+			case sensorLimit := <-setSensorLimitsChannel:
+				var sensorLimitsMessage common.EnergyCommunitySensorLimitMessage
+				err := json.Unmarshal([]byte(sensorLimit.Data), &sensorLimitsMessage)
+				if err != nil {
+					log.Println("controller - error unmarshalling sensor limits message:", err)
+					continue
+				}
+
+				log.Printf("controller - received sensor limits message %v", sensorLimitsMessage.SensorLimits)
+
+				c.state.toplogy.setAllSensorLimits(0)
+				for sensorId, limit := range sensorLimitsMessage.SensorLimits {
+					c.state.toplogy.setSensorLimit(sensorId, limit)
+				}
+				addEvent("newSensorLimitsReceived")
 			}
 		}
 	}()
@@ -130,4 +150,24 @@ func (c *dsoConnector) registerAtDso(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (c *dsoConnector) sendFlowProposal() {
+	flowProposals := make(map[string]common.FlowProposal)
+	for _, sensor := range c.state.toplogy.sensors {
+		numberOfNodes := 0
+		if sensor.flow < 0 {
+			numberOfNodes = sensor.numGlobalPVs
+		} else if sensor.flow > 0 {
+			numberOfNodes = sensor.numGlobalChargers
+		}
+
+		flowProposals[sensor.id] = common.FlowProposal{
+			Flow:          sensor.flow,
+			NumberOfNodes: numberOfNodes,
+		}
+	}
+
+	data, _ := json.Marshal(common.FlowProposalsMessage{Proposals: flowProposals, Timestamp: time.Now()})
+	c.flowProposalCallback(api.ActionResult{Data: data})
 }

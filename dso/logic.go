@@ -38,10 +38,10 @@ func newLogic(config Config, connector *connector, state *state) (*logic, error)
 	defer s2.Close()*/
 
 	callbacks := make(map[string]func())
-	callbacks["triggerNewRound"] = connector.triggerNewRound
-	callbacks["getData"] = connector.getSensorData
-	callbacks["calculateLimits"] = l.calculateLimits
-	callbacks["sendLimits"] = connector.sendLimits
+	callbacks["geFlowProposals"] = connector.getFlowProposals
+	callbacks["getSensorData"] = connector.getSensorData
+	callbacks["calculateSensorLimits"] = l.calculateSensorLimits
+	callbacks["sendLimits"] = connector.sendSensorLimits
 	/*if sct, err := sct.NewSCT([]io.Reader{s1, s2}, callbacks); err != nil {
 		return nil, err
 	} else {
@@ -87,14 +87,15 @@ func (l *logic) start(ctx context.Context) error {
 
 func (l *logic) newRound() {
 	l.state.topology = l.state.newTopology
+	l.state.updateLocalSensorInformation()
 	//addEvent("newRound")
 }
 
-func (l *logic) calculateLimits() {
-	l.state.ecLimits = make(map[string]common.EnergyCommunitySensorLimitMessage)
+func (l *logic) calculateSensorLimits() {
+	l.state.energyCommunitySensorLimits = make(map[string]common.EnergyCommunitySensorLimitMessage)
 
 	for _, energyCommunity := range l.state.energyCommunities {
-		l.state.ecLimits[energyCommunity.Id] = common.EnergyCommunitySensorLimitMessage{SensorLimits: make(map[string]float64)} //remove empty energy communities in the end
+		l.state.energyCommunitySensorLimits[energyCommunity.Id] = common.EnergyCommunitySensorLimitMessage{SensorLimits: make(map[string]float64)}
 	}
 
 	for sensorId, localSensorInformation := range l.state.localSenorInformations {
@@ -108,13 +109,15 @@ func (l *logic) calculateLimits() {
 		availableDemand := sensorLimit - (math.Abs(localSensorInformation.measurement) - math.Abs(localSensorInformation.sumECLimits))
 		if availableDemand >= math.Abs(sumFlowProposals) {
 			for energyCommunityId, flowProposal := range localSensorInformation.ecFlowProposal {
-				l.state.ecLimits[energyCommunityId].SensorLimits[sensorId] = flowProposal.Flow
+				l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId] = math.Abs(flowProposal.Flow)
 			}
 		} else {
 			numComponents := 0
 			for _, flowProposal := range localSensorInformation.ecFlowProposal {
 				if (sumFlowProposals > 0 && flowProposal.Flow > 0) || (sumFlowProposals < 0 && flowProposal.Flow < 0) {
 					numComponents += flowProposal.NumberOfNodes
+				} else {
+					availableDemand += math.Abs(flowProposal.Flow)
 				}
 			}
 
@@ -122,32 +125,44 @@ func (l *logic) calculateLimits() {
 				ecLimit := availableDemand / float64(numComponents)
 				for energyCommunityId, flowProposal := range localSensorInformation.ecFlowProposal {
 					if (sumFlowProposals > 0 && flowProposal.Flow > 0) || (sumFlowProposals < 0 && flowProposal.Flow < 0) {
-						openDemand := flowProposal.Flow - l.state.ecLimits[energyCommunityId].SensorLimits[sensorId]*float64(flowProposal.NumberOfNodes)
+						openDemand := math.Abs(flowProposal.Flow) - l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId]*float64(flowProposal.NumberOfNodes)
 
 						if openDemand == 0 {
 							continue
 						}
 
 						if ecLimit >= openDemand {
-							l.state.ecLimits[energyCommunityId].SensorLimits[sensorId] += openDemand
+							l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId] += openDemand
 							availableDemand -= openDemand
 							numComponents -= flowProposal.NumberOfNodes
 						} else {
 							metDemand := ecLimit * float64(flowProposal.NumberOfNodes)
-							l.state.ecLimits[energyCommunityId].SensorLimits[sensorId] += metDemand
+							l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId] += metDemand
 							availableDemand -= metDemand
 						}
 					} else {
-						l.state.ecLimits[energyCommunityId].SensorLimits[sensorId] = flowProposal.Flow
+						l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId] = math.Abs(flowProposal.Flow)
 					}
 				}
 			}
 		}
 	}
 
-	for energyCommunityId, flowSetPointMessage := range l.state.ecLimits {
+	for _, localSensorInformation := range l.state.localSenorInformations {
+		localSensorInformation.sumECLimits = 0.0
+	}
+
+	for energyCommunityId, flowSetPointMessage := range l.state.energyCommunitySensorLimits {
 		if len(flowSetPointMessage.SensorLimits) == 0 {
-			delete(l.state.ecLimits, energyCommunityId)
+			delete(l.state.energyCommunitySensorLimits, energyCommunityId)
+		}
+
+		for sensorId, limit := range flowSetPointMessage.SensorLimits {
+			if l.state.localSenorInformations[sensorId].ecFlowProposal[energyCommunityId].Flow < 0 {
+				l.state.localSenorInformations[sensorId].sumECLimits -= limit
+			} else {
+				l.state.localSenorInformations[sensorId].sumECLimits += limit
+			}
 		}
 	}
 }

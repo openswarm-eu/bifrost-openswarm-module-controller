@@ -262,18 +262,6 @@ func (c *energyCommunityConnector) writeTopologyToLog(toplogy common.TopologyMes
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
-func (c *energyCommunityConnector) sendFlows() {
-	/*flowProposals := make([]common.FlowProposal, len(c.state.sensors))
-	for _, sensor := range c.state.sensors {
-		flowProposals = append(flowProposals, common.FlowProposal{
-			SensorId: sensor.id,
-			Flow:     sensor.flow,
-		})
-	}
-
-	data, _ := json.Marshal(common.FlowProposalsMessage{Proposals: flowProposals})*/
-}
-
 func (c *energyCommunityConnector) sendSetPoints() {
 	for _, charger := range c.state.toplogy.chargers {
 		msg := common.Value{Message: common.Message{Id: charger.id, Timestamp: time.Now()}, Value: charger.setPoint}

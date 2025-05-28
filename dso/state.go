@@ -10,10 +10,10 @@ type state struct {
 	topology          topology
 
 	// local only
-	leader                 bool
-	newTopology            topology
-	localSenorInformations map[string]localSenorInformation
-	ecLimits               map[string]common.EnergyCommunitySensorLimitMessage // energyCommunityId -> FlowSetPointsMessage
+	leader                      bool
+	newTopology                 topology
+	localSenorInformations      map[string]*localSenorInformation                   // sensorId -> localSenorInformation
+	energyCommunitySensorLimits map[string]common.EnergyCommunitySensorLimitMessage // energyCommunityId -> FlowSetPointsMessage
 }
 
 type energyCommunity struct {
@@ -57,6 +57,19 @@ func (s *state) cloneTopology() topology {
 	}
 
 	return result
+}
+
+func (s *state) updateLocalSensorInformation() {
+	s.localSenorInformations = make(map[string]*localSenorInformation)
+
+	for sensorId := range s.topology.Sensors {
+		if _, ok := s.localSenorInformations[sensorId]; !ok {
+			s.localSenorInformations[sensorId] = &localSenorInformation{
+				measurement:    0,
+				ecFlowProposal: make(map[string]common.FlowProposal),
+			}
+		}
+	}
 }
 
 func addNodeToTopology(registerSensorMessage common.RegisterSensorMessage, topology *topology) {

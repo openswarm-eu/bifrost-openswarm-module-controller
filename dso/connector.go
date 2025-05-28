@@ -89,12 +89,14 @@ func (c *connector) start(ctx context.Context) error {
 				if !c.state.leader {
 					continue
 				}
+
 				log.Println("dso - got register sensor")
 				var msg common.RegisterSensorMessage
 				if err := json.Unmarshal(registerSensor.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register sensor message, %s", err)
 					continue
 				}
+
 				c.registerCallbacks[msg.SensorId] = registerSensor.Callback
 				newTopology := c.state.cloneTopology()
 				newTopology.Version++
@@ -105,12 +107,14 @@ func (c *connector) start(ctx context.Context) error {
 				if !c.state.leader {
 					continue
 				}
+
 				log.Println("dso - got deregister sensor")
 				var msg common.RegisterSensorMessage
 				if err := json.Unmarshal(deregisterSensor.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister sensor message, %s", err)
 					continue
 				}
+
 				c.deregisterCallbacks[msg.SensorId] = deregisterSensor.Callback
 				newTopology := c.state.cloneTopology()
 				newTopology.Version++
@@ -120,12 +124,14 @@ func (c *connector) start(ctx context.Context) error {
 				if !c.state.leader {
 					continue
 				}
+
 				log.Println("dso - got register energy community")
 				var msg common.RegisterEnergyCommunityMessage
 				if err := json.Unmarshal(registerEnergyCommunity.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register energy community message, %s", err)
 					continue
 				}
+
 				for _, energyCommunity := range c.state.energyCommunities {
 					if energyCommunity.Id == msg.EnergyCommunityId {
 						log.Printf("Energy community %s already registered", msg.EnergyCommunityId)
@@ -133,6 +139,7 @@ func (c *connector) start(ctx context.Context) error {
 						continue
 					}
 				}
+
 				c.registerEnergyCommunityCallbacks[msg.EnergyCommunityId] = registerEnergyCommunity.Callback
 				c.state.energyCommunities = append(c.state.energyCommunities, &energyCommunity{Id: msg.EnergyCommunityId, TopologyVersion: 0})
 				c.writeEnergyCommunityToLog()
@@ -140,27 +147,32 @@ func (c *connector) start(ctx context.Context) error {
 				if !c.state.leader {
 					continue
 				}
+
 				log.Println("dso - got deregister energy community")
 				var msg common.RegisterEnergyCommunityMessage
 				if err := json.Unmarshal(derigsterEnergyCommunity.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister energy community message, %s", err)
 					continue
 				}
+
 				c.deregisterEnergyCommunityCallbacks[msg.EnergyCommunityId] = derigsterEnergyCommunity.Callback
 				c.state.removeEnergyCommunity(msg.EnergyCommunityId)
 				c.writeEnergyCommunityToLog()
 			case stateChange := <-sc:
 				switch stateChange.Key {
-				case TOPOLOGY_KEY:
+				case topology_key:
 					var topology topology
 					if err := json.Unmarshal(stateChange.Value, &topology); err != nil {
 						log.Printf("Could not unmarshal incoming topology state change message, %s", err)
 						continue
 					}
+
 					c.state.newTopology = topology
+
 					if !c.state.leader {
 						continue
 					}
+
 					for sensorId, callback := range c.registerCallbacks {
 						if _, ok := c.state.topology.Sensors[sensorId]; !ok {
 							continue
@@ -168,6 +180,7 @@ func (c *connector) start(ctx context.Context) error {
 						callback(api.ActionResult{Data: []byte(sensorId)})
 						delete(c.registerCallbacks, sensorId)
 					}
+
 					for sensorId, callback := range c.deregisterCallbacks {
 						if _, ok := c.state.topology.Sensors[sensorId]; ok {
 							continue
@@ -175,8 +188,9 @@ func (c *connector) start(ctx context.Context) error {
 						callback(api.ActionResult{Data: []byte(sensorId)})
 						delete(c.deregisterCallbacks, sensorId)
 					}
+
 					c.energyCommunityTopologyUpdater.sendUpdatesToEnergyCommunities()
-				case ENERGY_COMMUNITY_KEY:
+				case energy_community_key:
 					var energyCommunities []energyCommunity
 					if err := json.Unmarshal(stateChange.Value, &energyCommunities); err != nil {
 						log.Printf("Could not unmarshal incoming energy community state change message, %s", err)
@@ -229,7 +243,7 @@ func (c *connector) writeToplogyToLog(topology topology) {
 
 	input := stateAPI.Input{
 		Op:    stateAPI.InputOpSet,
-		Key:   TOPOLOGY_KEY,
+		Key:   topology_key,
 		Value: data,
 	}
 
@@ -241,7 +255,7 @@ func (c *connector) writeEnergyCommunityToLog() {
 
 	input := stateAPI.Input{
 		Op:    stateAPI.InputOpSet,
-		Key:   ENERGY_COMMUNITY_KEY,
+		Key:   energy_community_key,
 		Value: data,
 	}
 
@@ -252,15 +266,61 @@ func (c *connector) leaderCh(ctx context.Context) <-chan bool {
 	return c.ddaConnector.LeaderCh(ctx)
 }
 
-func (c *connector) triggerNewRound() {
-	/*for _, energyCommunity := range d.state.energyCommunities {
-		if d.state.currentTopologyVersion != energyCommunity.acknowledgeToplogyVersion {
+func (c *connector) getFlowProposals() {
+	for _, localSenorInformation := range c.state.localSenorInformations {
+		localSenorInformation.ecFlowProposal = make(map[string]common.FlowProposal)
+	}
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(500*time.Millisecond))
+
+	numOutstandingProposals := len(c.state.energyCommunities)
+	flowProposals := make(chan common.FlowProposalsMessage, numOutstandingProposals)
+
+	for _, energyCommunity := range c.state.energyCommunities {
+		if c.state.topology.Version != energyCommunity.TopologyVersion {
 			continue
 		}
-		if err := d.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.NEW_ROUND_EVENT, energyCommunity.id), Source: d.id, Id: uuid.NewString(), Data: []byte("")}); err != nil {
-			log.Printf("could not send new round event - %s", err)
+		go func(energyCommunityId string) {
+			if result, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.AppendId(common.GET_FLOW_PROPOSAL_ACTION, energyCommunityId), Id: uuid.NewString(), Source: "dso"}); err != nil {
+				log.Printf("dso - could not send get flow proposal action - %s", err)
+			} else {
+				msg := <-result
+				if len(msg.Data) == 0 {
+					return
+				}
+
+				var flowProposal common.FlowProposalsMessage
+				if err := json.Unmarshal(msg.Data, &flowProposal); err != nil {
+					log.Printf("could not unmarshal flow proposal - %s", err)
+				} else {
+					flowProposals <- flowProposal
+				}
+			}
+		}(energyCommunity.Id)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			cancel()
+			addEvent("flowProposalsReceived")
+			return
+		case energyCommunityProposal := <-flowProposals:
+			for sensorId, flowProposal := range energyCommunityProposal.Proposals {
+				if sensor, ok := c.state.localSenorInformations[sensorId]; ok {
+					sensor.ecFlowProposal[energyCommunityProposal.EnergyCommunityId] = flowProposal
+				}
+			}
+			numOutstandingProposals--
+			if numOutstandingProposals == 0 {
+				cancel()
+				addEvent("flowProposalsReceived")
+				return
+			}
 		}
-	}*/
+	}
 }
 
 func (c *connector) getSensorData() {
@@ -303,8 +363,15 @@ func (c *connector) getSensorData() {
 	}()
 }
 
-func (c *connector) sendLimits() {
+func (c *connector) sendSensorLimits() {
+	for energyCommunityId, sensorLimitsMessage := range c.state.energyCommunitySensorLimits {
+		data, _ := json.Marshal(sensorLimitsMessage)
+
+		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_SENSOR_LIMITS_EVENT, energyCommunityId), Source: "dso", Data: data}); err != nil {
+			log.Printf("dso - could not send sensor limits event - %s", err)
+		}
+	}
 }
 
-const TOPOLOGY_KEY = "topology"
-const ENERGY_COMMUNITY_KEY = "energycommunity"
+const topology_key = "topology"
+const energy_community_key = "energycommunity"

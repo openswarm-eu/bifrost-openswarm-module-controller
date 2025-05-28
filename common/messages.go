@@ -61,14 +61,14 @@ const DEREGISTER_ACTION = "com.siemens.openswarm.deregister"
 const REGISTER_ENERGY_COMMUNITY_ACTION = "com.siemens.openswarm.registerenergycommunity"
 const DEREGISTER_ENERGY_COMMUNITY_ACTION = "com.siemens.openswarm.deregisterenergycommunity"
 const TOPOLOGY_UPDATE_ACTION = "com.siemens.openswarm.topologyupdate"
+
 const GET_CHARGER_DEMAND_ACTION = "com.siemens.openswarm.chargerdemand"
 const GET_PV_DEMAND_ACTION = "com.siemens.openswarm.pvdemand"
 const GET_SENSOR_MEASUREMENT_ACTION = "com.siemens.openswarm.measurement"
 const SET_POINT = "com.siemens.openswarm.setpoint"
 
-// const NEW_ROUND_EVENT = "com.siemens.openswarm.newround"
-// const FLOW_PROPOSAL_EVENT = "com.siemens.openswarm.flowproposal"
-// const SENSOR_LIMITS_EVENT = "com.siemens.openswarm.sensorlimits"
+const GET_FLOW_PROPOSAL_ACTION = "com.siemens.openswarm.floproposal"
+const SET_SENSOR_LIMITS_EVENT = "com.siemens.openswarm.setsensorlimits"
 
 func AppendId(ddaType string, id string) string {
 	return ddaType + "_" + id

@@ -416,3 +416,45 @@ func (s *sensor) reset() {
 		charger.setPoint = 0
 	}
 }
+
+func (s *sensor) updateNumberOfGlobalPVsForFlowProposal() int {
+	numChildPvs := 0
+	for _, childSensor := range s.childSensors {
+		numChildPvs += childSensor.updateNumberOfGlobalPVsForFlowProposal()
+	}
+
+	if s.flow >= 0 {
+		s.numGlobalPVs = 0
+		return 0
+	}
+
+	s.numGlobalPVs = numChildPvs
+	for _, pv := range s.pvs {
+		if pv.setPoint > 0 {
+			s.numGlobalPVs++
+		}
+	}
+
+	return s.numGlobalPVs
+}
+
+func (s *sensor) updateNumberOfGlobalChargerssForFlowProposal() int {
+	numChildChargers := 0
+	for _, childSensor := range s.childSensors {
+		numChildChargers += childSensor.updateNumberOfGlobalChargerssForFlowProposal()
+	}
+
+	if s.flow <= 0 {
+		s.numGlobalChargers = 0
+		return 0
+	}
+
+	s.numGlobalChargers = numChildChargers
+	for _, charger := range s.chargers {
+		if charger.setPoint > 0 {
+			s.numGlobalChargers++
+		}
+	}
+
+	return s.numGlobalChargers
+}
