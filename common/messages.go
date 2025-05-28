@@ -11,19 +11,19 @@ type RegisterNodeMessage struct {
 	NodeId    string
 	SensorId  string
 	NodeType  string
-	Timestamp int64
+	Timestamp time.Time
 }
 
 type RegisterSensorMessage struct {
 	SensorId       string
 	ParentSensorId string
 	Limit          float64
-	Timestamp      int64
+	Timestamp      time.Time
 }
 
 type RegisterEnergyCommunityMessage struct {
 	EnergyCommunityId string
-	Timestamp         int64
+	Timestamp         time.Time
 }
 
 type Message struct {

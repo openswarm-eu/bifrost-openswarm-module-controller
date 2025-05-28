@@ -119,7 +119,7 @@ func main() {
 }
 
 func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, limit float64) {
-	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Limit: limit, Timestamp: time.Now().Unix()}
+	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Limit: limit, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
 	for {
@@ -149,7 +149,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string,
 }
 
 func deregister(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string) {
-	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Timestamp: time.Now().Unix()}
+	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
 	for {

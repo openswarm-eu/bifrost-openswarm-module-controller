@@ -91,7 +91,7 @@ func (c *dsoConnector) start(ctx context.Context) error {
 
 func (c *dsoConnector) stop() {
 	if c.state.registeredAtDso && c.state.clusterMembers == 1 {
-		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now().Unix()}
+		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
 		data, _ := json.Marshal(registerMessage)
 
 		for {
@@ -121,7 +121,7 @@ func (c *dsoConnector) stop() {
 
 func (c *dsoConnector) registerAtDso(ctx context.Context) {
 	go func() {
-		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now().Unix()}
+		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
 		data, _ := json.Marshal(registerMessage)
 
 		for {

@@ -174,7 +174,7 @@ func main() {
 }
 
 func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string) {
-	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now().Unix()}
+	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
 	for {
@@ -204,7 +204,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 }
 
 func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string) {
-	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now().Unix()}
+	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
 	for {
