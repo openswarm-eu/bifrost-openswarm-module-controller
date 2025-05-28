@@ -20,8 +20,6 @@ type dsoConnector struct {
 	flowProposalCallback     api.ActionCallback
 }
 
-const flow_proposal_callback_key = "flowProposal"
-
 func newDsoConnector(energyCommunityId string, ddaConnector *dda.Connector, energyCommunityConnector *energyCommunityConnector, state *state) *dsoConnector {
 	return &dsoConnector{
 		energyCommunityId:        energyCommunityId,
