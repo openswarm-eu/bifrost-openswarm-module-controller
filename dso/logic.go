@@ -2,8 +2,12 @@ package dso
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log"
 	"math"
+	"os"
+	"time"
 
 	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/sct"
@@ -16,37 +20,49 @@ func addEvent(event string) {
 }
 
 type logic struct {
-	config    Config
-	connector *connector
-	state     *state
-	sct       *sct.SCT
+	config                         Config
+	connector                      *connector
+	energyCommunityTopologyUpdater *energyCommunityTopologyUpdater
+	state                          *state
+	sct                            *sct.SCT
 }
 
-func newLogic(config Config, connector *connector, state *state) (*logic, error) {
-	l := logic{config: config, connector: connector, state: state}
+func newLogic(config Config, connector *connector, energyCommunityTopologyUpdater *energyCommunityTopologyUpdater, state *state) (*logic, error) {
+	l := logic{
+		config:                         config,
+		connector:                      connector,
+		energyCommunityTopologyUpdater: energyCommunityTopologyUpdater,
+		state:                          state,
+	}
 
-	/*s1, err := os.Open("resources/simpleController1.xml")
+	s1, err := os.Open("resources/sensor1.xml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
 	defer s1.Close()
 
-	s2, err := os.Open("resources/simpleController2.xml")
+	s2, err := os.Open("resources/sensor2.xml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
-	defer s2.Close()*/
+	defer s2.Close()
+
+	s3, err := os.Open("resources/sensor3.xml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %v", err)
+	}
+	defer s2.Close()
 
 	callbacks := make(map[string]func())
-	callbacks["geFlowProposals"] = connector.getFlowProposals
-	callbacks["getSensorData"] = connector.getSensorData
+	callbacks["getFlowProposals"] = connector.getFlowProposals
+	callbacks["getSensorMeasurements"] = connector.getSensorMeasurements
 	callbacks["calculateSensorLimits"] = l.calculateSensorLimits
-	callbacks["sendLimits"] = connector.sendSensorLimits
-	/*if sct, err := sct.NewSCT([]io.Reader{s1, s2}, callbacks); err != nil {
+	callbacks["sendSensorLimits"] = connector.sendSensorLimits
+	if sct, err := sct.NewSCT([]io.Reader{s1, s2, s3}, callbacks); err != nil {
 		return nil, err
 	} else {
 		l.sct = sct
-	}*/
+	}
 
 	return &l, nil
 }
@@ -55,7 +71,7 @@ func (l *logic) start(ctx context.Context) error {
 	eventChannel = make(chan string, 100)
 	var ticker common.Ticker
 
-	//l.sct.Start(ctx)
+	l.sct.Start(ctx)
 
 	leaderCh := l.connector.leaderCh(ctx)
 
@@ -66,7 +82,9 @@ func (l *logic) start(ctx context.Context) error {
 				if v {
 					log.Println("dso - I'm leader, starting logic")
 					l.state.leader = true
-					ticker.Start(l.config.Periode, l.newRound)
+					l.energyCommunityTopologyUpdater.sendUpdatesToEnergyCommunities()
+					//ticker.Start(l.config.Periode, l.newRound)
+					ticker.Start(10*time.Second, l.newRound)
 				} else {
 					log.Println("dso - lost leadership, stop logic")
 					l.state.leader = false
@@ -88,7 +106,9 @@ func (l *logic) start(ctx context.Context) error {
 func (l *logic) newRound() {
 	l.state.topology = l.state.newTopology
 	l.state.updateLocalSensorInformation()
-	//addEvent("newRound")
+	l.energyCommunityTopologyUpdater.sendUpdatesToEnergyCommunities()
+
+	addEvent("newRound")
 }
 
 func (l *logic) calculateSensorLimits() {
@@ -105,7 +125,7 @@ func (l *logic) calculateSensorLimits() {
 			sumFlowProposals += flowProposal.Flow
 		}
 
-		sensorLimit := l.state.topology.Sensors[sensorId].limit
+		sensorLimit := l.state.topology.Sensors[sensorId].Limit
 		availableDemand := sensorLimit - (math.Abs(localSensorInformation.measurement) - math.Abs(localSensorInformation.sumECLimits))
 		if availableDemand >= math.Abs(sumFlowProposals) {
 			for energyCommunityId, flowProposal := range localSensorInformation.ecFlowProposal {
@@ -153,10 +173,6 @@ func (l *logic) calculateSensorLimits() {
 	}
 
 	for energyCommunityId, flowSetPointMessage := range l.state.energyCommunitySensorLimits {
-		if len(flowSetPointMessage.SensorLimits) == 0 {
-			delete(l.state.energyCommunitySensorLimits, energyCommunityId)
-		}
-
 		for sensorId, limit := range flowSetPointMessage.SensorLimits {
 			if l.state.localSenorInformations[sensorId].ecFlowProposal[energyCommunityId].Flow < 0 {
 				l.state.localSenorInformations[sensorId].sumECLimits -= limit

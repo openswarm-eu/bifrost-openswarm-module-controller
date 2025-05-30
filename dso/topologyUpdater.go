@@ -15,11 +15,10 @@ import (
 type energyCommunityTopologyUpdater struct {
 	ddaConnector *dda.Connector
 	state        *state
-	ctx          context.Context
-	cancel       context.CancelFunc
 
-	writeEnergyCommunityToLog         bool
 	writeEnergyCommunityToLogCallback func(topology topology)
+
+	ctx context.Context
 }
 
 func newEnergyCommunityTopologyUpdater(ddaConnector *dda.Connector, state *state, writeEnergyCommunityToLogCallback func(topology topology)) *energyCommunityTopologyUpdater {
@@ -30,58 +29,63 @@ func newEnergyCommunityTopologyUpdater(ddaConnector *dda.Connector, state *state
 	}
 }
 
-func (tu *energyCommunityTopologyUpdater) sendUpdatesToEnergyCommunities() {
-	tu.writeEnergyCommunityToLog = false
-
-	go func() {
-		for {
-			energyCommunityWithOldTopology := make([]*energyCommunity, 0)
-			for _, energyCommunity := range tu.state.energyCommunities {
-				if energyCommunity.TopologyVersion != tu.state.topology.Version {
-					energyCommunityWithOldTopology = append(energyCommunityWithOldTopology, energyCommunity)
-				}
-			}
-
-			if len(energyCommunityWithOldTopology) == 0 {
-				return
-			}
-
-			if tu.cancel != nil {
-				tu.cancel()
-			}
-
-			tu.ctx, tu.cancel = context.WithTimeout(
-				context.Background(),
-				time.Duration(1*time.Second))
-
-			topology := make(map[string][]string)
-			for sensorId, sensor := range tu.state.topology.Sensors {
-				topology[sensorId] = sensor.childrenSensorId
-			}
-
-			message := common.TopologyMessage{Topology: topology, Timestamp: time.Now().Unix()}
-			data, _ := json.Marshal(message)
-
-			for _, energyCommunity := range energyCommunityWithOldTopology {
-				go tu.sendUpdateToEnergyCommunity(energyCommunity, data, tu.ctx)
-			}
-
-			<-tu.ctx.Done()
-
-			if tu.ctx.Err() == context.Canceled {
-				return
-			}
-
-			if tu.writeEnergyCommunityToLog {
-				tu.writeEnergyCommunityToLogCallback(tu.state.topology)
-			}
-
-			time.Sleep(4 * time.Second)
-		}
-	}()
+func (tu *energyCommunityTopologyUpdater) setContext(ctx context.Context) {
+	tu.ctx = ctx
 }
 
-func (tu *energyCommunityTopologyUpdater) sendUpdateToEnergyCommunity(energyCommunity *energyCommunity, data []byte, ctx context.Context) {
+func (tu *energyCommunityTopologyUpdater) sendUpdatesToEnergyCommunities() {
+	energyCommunityWithOldTopology := make([]*energyCommunity, 0)
+	for _, energyCommunity := range tu.state.energyCommunities {
+		if energyCommunity.TopologyVersion != tu.state.topology.Version {
+			energyCommunityWithOldTopology = append(energyCommunityWithOldTopology, energyCommunity)
+		}
+	}
+
+	outstandingTopologyUpdates := len(energyCommunityWithOldTopology)
+	if outstandingTopologyUpdates == 0 {
+		return
+	}
+
+	topology := make(map[string][]string)
+	for sensorId, sensor := range tu.state.topology.Sensors {
+		topology[sensorId] = sensor.ChildrenSensorId
+	}
+
+	message := common.TopologyMessage{Topology: topology, Timestamp: time.Now().Unix()}
+	data, _ := json.Marshal(message)
+
+	updateSuccessChannel := make(chan struct{}, outstandingTopologyUpdates)
+	writeEnergyCommunityToLog := false
+
+	ctx, cancel := context.WithTimeout(
+		tu.ctx,
+		time.Duration(500*time.Millisecond))
+	for _, energyCommunity := range energyCommunityWithOldTopology {
+		go tu.sendUpdateToEnergyCommunity(energyCommunity, data, ctx, updateSuccessChannel)
+	}
+
+outer:
+	for {
+		select {
+		case <-ctx.Done():
+			cancel()
+			break outer
+		case <-updateSuccessChannel:
+			writeEnergyCommunityToLog = true
+			outstandingTopologyUpdates--
+			if outstandingTopologyUpdates == 0 {
+				cancel()
+				break outer
+			}
+		}
+	}
+
+	if writeEnergyCommunityToLog {
+		tu.writeEnergyCommunityToLogCallback(tu.state.topology)
+	}
+}
+
+func (tu *energyCommunityTopologyUpdater) sendUpdateToEnergyCommunity(energyCommunity *energyCommunity, data []byte, ctx context.Context, sucessChannel chan struct{}) {
 	log.Printf("dso - sending topology update to: %s", energyCommunity.Id)
 	result, err := tu.ddaConnector.PublishAction(ctx, api.Action{Type: common.AppendId(common.TOPOLOGY_UPDATE_ACTION, energyCommunity.Id), Id: uuid.NewString(), Source: "dso", Params: data})
 	if err != nil {
@@ -95,11 +99,5 @@ func (tu *energyCommunityTopologyUpdater) sendUpdateToEnergyCommunity(energyComm
 
 	log.Printf("dso - %s: accepted new topo", energyCommunity.Id)
 	energyCommunity.TopologyVersion = tu.state.topology.Version
-	tu.writeEnergyCommunityToLog = true
-}
-
-func (tu *energyCommunityTopologyUpdater) stop() {
-	if tu.cancel != nil {
-		tu.cancel()
-	}
+	sucessChannel <- struct{}{}
 }

@@ -8,29 +8,32 @@ import (
 )
 
 type Dso struct {
-	connector *connector
-	logic     *logic
+	connector                      *connector
+	logic                          *logic
+	energyCommunityTopologyUpdater *energyCommunityTopologyUpdater
 }
 
 func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 	state := &state{
 		energyCommunities:           make([]*energyCommunity, 0),
-		topology:                    topology{Version: 0, Sensors: make(map[string]sensor)},
+		topology:                    topology{Version: 0, Sensors: make(map[string]*sensor)},
 		leader:                      false,
 		localSenorInformations:      make(map[string]*localSenorInformation),
 		energyCommunitySensorLimits: make(map[string]common.EnergyCommunitySensorLimitMessage),
 	}
 
 	connector := newConnector(config, ddaConnector, state)
-	logic, err := newLogic(config, connector, state)
+	energyCommunityTopologyUpdater := newEnergyCommunityTopologyUpdater(ddaConnector, state, connector.writeToplogyToLog)
+	logic, err := newLogic(config, connector, energyCommunityTopologyUpdater, state)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Dso{connector: connector, logic: logic}, nil
+	return &Dso{connector: connector, logic: logic, energyCommunityTopologyUpdater: energyCommunityTopologyUpdater}, nil
 }
 
 func (d *Dso) Start(ctx context.Context) error {
+	d.energyCommunityTopologyUpdater.setContext(ctx)
 	if err := d.connector.start(ctx); err != nil {
 		return err
 	}
@@ -39,8 +42,4 @@ func (d *Dso) Start(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (d *Dso) Stop() {
-	d.connector.stop()
 }

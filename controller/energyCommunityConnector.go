@@ -115,6 +115,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 							callback([]byte(nodeId))
 						}
 					} else {
+						c.state.toplogy.removeNode(nodeId)
 						if callback, ok := c.callbackManager.getCallback(nodeId); ok {
 							callback([]byte(nodeId))
 						}
@@ -159,7 +160,9 @@ func (c *energyCommunityConnector) getData() {
 		charger.demand = 0
 	}
 
-	ctx, cancel := context.WithCancel(c.ctx)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(500*time.Millisecond))
 
 	outstandingPVResponses := len(c.state.toplogy.pvs)
 	outstandingChargerResponses := len(c.state.toplogy.chargers)
@@ -196,6 +199,7 @@ func (c *energyCommunityConnector) getData() {
 
 				if value.Timestamp.After(startTime) {
 					if pv, ok := c.state.toplogy.pvs[value.Id]; ok {
+						log.Println("controller - got pv response", value.Id, value.Value)
 						pv.demand = value.Value
 					}
 

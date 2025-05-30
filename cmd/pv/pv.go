@@ -128,7 +128,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	setPointChannel, err := ddaConnectorEnergyCommunity.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SET_POINT, energyCommunityId)})
+	setPointChannel, err := ddaConnectorEnergyCommunity.SubscribeEvent(ctx, api.SubscriptionFilter{Type: common.AppendId(common.SET_POINT, nodeId)})
 	if err != nil {
 		log.Fatalln(err)
 	}

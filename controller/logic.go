@@ -33,13 +33,19 @@ func newLogic(config Config, energyCommunityConnector *energyCommunityConnector,
 		state:                    state,
 	}
 
-	s1, err := os.Open("resources/simpleController1.xml")
+	s1, err := os.Open("resources/controller1.xml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
 	defer s1.Close()
 
-	s2, err := os.Open("resources/simpleController2.xml")
+	s2, err := os.Open("resources/controller2.xml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %v", err)
+	}
+	defer s2.Close()
+
+	s3, err := os.Open("resources/controller3.xml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
@@ -49,9 +55,9 @@ func newLogic(config Config, energyCommunityConnector *energyCommunityConnector,
 	callbacks["getData"] = energyCommunityConnector.getData
 	callbacks["calculateSetPointsWithoutLimits"] = l.calculateSetPointsWithoutLimits
 	callbacks["calculateSetPointsWithLimits"] = l.calculateSetPointsWithLimits
-	callbacks["sendFlows"] = dsoConnector.sendFlowProposal
+	callbacks["sendFlowProposal"] = dsoConnector.sendFlowProposal
 	callbacks["sendSetPoints"] = energyCommunityConnector.sendSetPoints
-	if sct, err := sct.NewSCT([]io.Reader{s1, s2}, callbacks); err != nil {
+	if sct, err := sct.NewSCT([]io.Reader{s1, s2, s3}, callbacks); err != nil {
 		return nil, err
 	} else {
 		l.sct = sct

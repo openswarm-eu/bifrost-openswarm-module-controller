@@ -37,7 +37,9 @@ func (t *toplogy) addPV(pvId string, sensorId string) {
 		t.sensors[sensorId] = &sensor{id: sensorId, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
 	}
 
-	t.sensors[sensorId].pvs = append(t.sensors[sensorId].pvs, &component{id: pvId, demand: 0, setPoint: 0})
+	pv := &component{id: pvId, demand: 0, setPoint: 0}
+	t.sensors[sensorId].pvs = append(t.sensors[sensorId].pvs, pv)
+	t.pvs[pvId] = pv
 }
 
 func (t *toplogy) addCharger(chargerId string, sensorId string) {
@@ -49,7 +51,9 @@ func (t *toplogy) addCharger(chargerId string, sensorId string) {
 		t.rootSensor.childSensors = append(t.rootSensor.childSensors, t.sensors[sensorId])
 	}
 
-	t.sensors[sensorId].chargers = append(t.sensors[sensorId].chargers, &component{id: chargerId, demand: 0, setPoint: 0})
+	charger := &component{id: chargerId, demand: 0, setPoint: 0}
+	t.sensors[sensorId].chargers = append(t.sensors[sensorId].chargers, charger)
+	t.chargers[chargerId] = charger
 }
 
 func (t *toplogy) removeNode(nodeId string) {
@@ -86,7 +90,7 @@ func (t *toplogy) buildTopology(topology map[string][]string) {
 	}
 
 	sensorsWithoutParent := make(map[string]*sensor)
-	for sensorId, _ := range topology {
+	for sensorId := range topology {
 		if _, ok := t.sensors[sensorId]; !ok {
 			t.sensors[sensorId] = &sensor{id: sensorId, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
 		}
@@ -100,7 +104,7 @@ func (t *toplogy) buildTopology(topology map[string][]string) {
 		}
 	}
 
-	t.rootSensor.childSensors = make([]*sensor, len(sensorsWithoutParent))
+	t.rootSensor.childSensors = make([]*sensor, 0)
 	for _, sensor := range sensorsWithoutParent {
 		t.rootSensor.childSensors = append(t.rootSensor.childSensors, sensor)
 	}

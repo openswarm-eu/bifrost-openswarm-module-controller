@@ -81,7 +81,7 @@ func (c *dsoConnector) start(ctx context.Context) error {
 				for sensorId, limit := range sensorLimitsMessage.SensorLimits {
 					c.state.toplogy.setSensorLimit(sensorId, limit)
 				}
-				addEvent("newSensorLimitsReceived")
+				addEvent("sensorLimitsReceived")
 			}
 		}
 	}()
@@ -151,6 +151,9 @@ func (c *dsoConnector) registerAtDso(ctx context.Context) {
 }
 
 func (c *dsoConnector) sendFlowProposal() {
+	c.state.toplogy.rootSensor.updateNumberOfGlobalChargerssForFlowProposal()
+	c.state.toplogy.rootSensor.updateNumberOfGlobalPVsForFlowProposal()
+
 	flowProposals := make(map[string]common.FlowProposal)
 	for _, sensor := range c.state.toplogy.sensors {
 		numberOfNodes := 0
@@ -166,6 +169,6 @@ func (c *dsoConnector) sendFlowProposal() {
 		}
 	}
 
-	data, _ := json.Marshal(common.FlowProposalsMessage{Proposals: flowProposals, Timestamp: time.Now()})
+	data, _ := json.Marshal(common.FlowProposalsMessage{EnergyCommunityId: c.energyCommunityId, Proposals: flowProposals, Timestamp: time.Now()})
 	c.flowProposalCallback(api.ActionResult{Data: data})
 }
