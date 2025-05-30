@@ -51,8 +51,8 @@ func TestCalculateSensorLimit(t *testing.T) {
 		},
 	}
 
-	logic, _ := newLogic(Config{}, &connector{}, nil, state)
-	logic.calculateSensorLimits()
+	calculator := newSensorLimitsCalculator(state)
+	calculator.calculateSensorLimits()
 
 	if state.energyCommunitySensorLimits["ec1"].SensorLimits["sensor1"] != 10 {
 		t.Errorf("Expected sensor1 limit for ec1 to be 10, got %f", state.energyCommunitySensorLimits["ec1"].SensorLimits["sensor1"])
@@ -120,8 +120,8 @@ func TestCalculateSensorLimitZero(t *testing.T) {
 		},
 	}
 
-	logic, _ := newLogic(Config{}, &connector{}, nil, state)
-	logic.calculateSensorLimits()
+	calculator := newSensorLimitsCalculator(state)
+	calculator.calculateSensorLimits()
 
 	if state.energyCommunitySensorLimits["ec1"].SensorLimits["sensor1"] != 0 {
 		t.Errorf("Expected sensor1 limit for ec1 to be 0, got %f", state.energyCommunitySensorLimits["ec1"].SensorLimits["sensor1"])
