@@ -301,26 +301,28 @@ func (c *connector) getFlowProposals() {
 		}(energyCommunity.Id)
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			cancel()
-			addEvent("flowProposalsReceived")
-			return
-		case energyCommunityProposal := <-flowProposals:
-			for sensorId, flowProposal := range energyCommunityProposal.Proposals {
-				if sensor, ok := c.state.localSenorInformations[sensorId]; ok {
-					sensor.ecFlowProposal[energyCommunityProposal.EnergyCommunityId] = flowProposal
-				}
-			}
-			numOutstandingProposals--
-			if numOutstandingProposals == 0 {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
 				cancel()
 				addEvent("flowProposalsReceived")
 				return
+			case energyCommunityProposal := <-flowProposals:
+				for sensorId, flowProposal := range energyCommunityProposal.Proposals {
+					if sensor, ok := c.state.localSenorInformations[sensorId]; ok {
+						sensor.ecFlowProposal[energyCommunityProposal.EnergyCommunityId] = flowProposal
+					}
+				}
+				numOutstandingProposals--
+				if numOutstandingProposals == 0 {
+					cancel()
+					addEvent("flowProposalsReceived")
+					return
+				}
 			}
 		}
-	}
+	}()
 }
 
 func (c *connector) getSensorData() {
@@ -328,20 +330,29 @@ func (c *connector) getSensorData() {
 		sensor.measurement = 0
 	}
 
+	numOutstandingSensorResponses := len(c.state.localSenorInformations)
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(c.config.WaitTimeForInputs))
+
+	sensorResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_SENSOR_MEASUREMENT_ACTION, Id: uuid.NewString(), Source: "dso"})
+	if err != nil {
+		log.Printf("dso - could not get sensor response - %s", err)
+		cancel()
+		return
+	}
+
+	// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
+	startTime := time.Now().Add(-1 * time.Second)
 	go func() {
-		ctx, cancel := context.WithCancel(c.ctx)
-
-		sensorResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_SENSOR_MEASUREMENT_ACTION, Id: uuid.NewString(), Source: "dso"})
-		if err != nil {
-			log.Printf("dso - could not get sensor response - %s", err)
-			cancel()
-			return
-		}
-
-		// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
-		startTime := time.Now().Add(-1 * time.Second)
-		go func() {
-			for sensorResponse := range sensorResponses {
+		for {
+			select {
+			case <-ctx.Done():
+				cancel()
+				addEvent("dataReceived")
+				return
+			case sensorResponse := <-sensorResponses:
 				var value common.Value
 				if err := json.Unmarshal(sensorResponse.Data, &value); err != nil {
 					log.Printf("Could not unmarshal incoming sensor message, %s", err)
@@ -352,14 +363,16 @@ func (c *connector) getSensorData() {
 					if sensor, ok := c.state.localSenorInformations[value.Id]; ok {
 						sensor.measurement = value.Value
 					}
+
+					numOutstandingSensorResponses--
+					if numOutstandingSensorResponses == 0 {
+						cancel()
+						addEvent("dataReceived")
+						return
+					}
 				}
 			}
-		}()
-
-		<-time.After(c.config.WaitTimeForInputs)
-		cancel()
-
-		addEvent("dataReceived")
+		}
 	}()
 }
 

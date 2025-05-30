@@ -159,27 +159,35 @@ func (c *energyCommunityConnector) getData() {
 		charger.demand = 0
 	}
 
+	ctx, cancel := context.WithCancel(c.ctx)
+
+	outstandingPVResponses := len(c.state.toplogy.pvs)
+	outstandingChargerResponses := len(c.state.toplogy.chargers)
+
+	pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_PV_DEMAND_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId})
+	if err != nil {
+		log.Printf("controller - could not get PV response - %s", err)
+		cancel()
+		return
+	}
+
+	chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_CHARGER_DEMAND_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId})
+	if err != nil {
+		log.Printf("controller - could not get charger response - %s", err)
+		cancel()
+		return
+	}
+
+	// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
+	startTime := time.Now().Add(-1 * time.Second)
 	go func() {
-		ctx, cancel := context.WithCancel(c.ctx)
-
-		pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_PV_DEMAND_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId})
-		if err != nil {
-			log.Printf("controller - could not get PV response - %s", err)
-			cancel()
-			return
-		}
-
-		chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_CHARGER_DEMAND_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId})
-		if err != nil {
-			log.Printf("controller - could not get charger response - %s", err)
-			cancel()
-			return
-		}
-
-		// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
-		startTime := time.Now().Add(-1 * time.Second)
-		go func() {
-			for pvResponse := range pvResponses {
+		for {
+			select {
+			case <-ctx.Done():
+				cancel()
+				addEvent("dataReceived")
+				return
+			case pvResponse := <-pvResponses:
 				var value common.Value
 				if err := json.Unmarshal(pvResponse.Data, &value); err != nil {
 					log.Printf("Could not unmarshal incoming PV message, %s", err)
@@ -190,12 +198,15 @@ func (c *energyCommunityConnector) getData() {
 					if pv, ok := c.state.toplogy.pvs[value.Id]; ok {
 						pv.demand = value.Value
 					}
-				}
-			}
-		}()
 
-		go func() {
-			for chargerResponse := range chargerResponses {
+					outstandingPVResponses--
+					if outstandingPVResponses == 0 && outstandingChargerResponses == 0 {
+						cancel()
+						addEvent("dataReceived")
+						return
+					}
+				}
+			case chargerResponse := <-chargerResponses:
 				var value common.Value
 				if err := json.Unmarshal(chargerResponse.Data, &value); err != nil {
 					log.Printf("Could not unmarshal incoming charger message, %s", err)
@@ -206,14 +217,16 @@ func (c *energyCommunityConnector) getData() {
 					if charger, ok := c.state.toplogy.pvs[value.Id]; ok {
 						charger.demand = value.Value
 					}
+
+					outstandingChargerResponses--
+					if outstandingPVResponses == 0 && outstandingChargerResponses == 0 {
+						cancel()
+						addEvent("dataReceived")
+						return
+					}
 				}
 			}
-		}()
-
-		<-time.After(c.config.WaitTimeForInputs)
-		cancel()
-
-		addEvent("dataReceived")
+		}
 	}()
 }
 
