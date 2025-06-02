@@ -5,11 +5,13 @@ import (
 )
 
 type sensor struct {
-	id           string
-	limit        float64
-	maximumFlow  float64
-	flow         float64
-	childSensors []*sensor
+	id            string
+	limit         float64
+	maximumFlow   float64
+	pvDemand      float64
+	chargerDemand float64
+	flow          float64
+	childSensors  []*sensor
 
 	pvs          []*component
 	numGlobalPVs int
@@ -25,99 +27,118 @@ func (s *sensor) setSetPoints() {
 	s.iterateThroughChildren()
 }
 
-func (s *sensor) calculateMaximumFlow() float64 {
-	maxFlow := 0.0
+func (s *sensor) calculateMaximumFlow() {
+	maximumFlow := 0.0
+
 	for _, child := range s.childSensors {
-		maxFlow += child.calculateMaximumFlow()
+		child.calculateMaximumFlow()
+		maximumFlow += child.maximumFlow
+		s.pvDemand += math.Min(child.limit, child.pvDemand)
+		s.chargerDemand += math.Min(child.limit, child.chargerDemand)
 	}
 
-	maxFlow -= s.getLocalPVDemand(false)
-	maxFlow += s.getLocalChargerDemand(false)
+	localPVDemand := s.getLocalPVDemand(false)
+	localChargerDemand := s.getLocalChargerDemand(false)
+	maximumFlow -= localPVDemand
+	s.pvDemand += localPVDemand
+	maximumFlow += localChargerDemand
+	s.chargerDemand += localChargerDemand
 
-	if maxFlow > 0 {
-		s.maximumFlow = math.Min(s.limit, maxFlow)
+	if maximumFlow > 0 {
+		s.maximumFlow = math.Min(s.limit, maximumFlow)
 	} else {
-		s.maximumFlow = math.Max(-s.limit, maxFlow)
+		s.maximumFlow = math.Max(-s.limit, maximumFlow)
 	}
-
-	return s.maximumFlow
 }
 
 func (s *sensor) iterateThroughChildren() {
 	if s.maximumFlow > 0 {
-		// overconsumption
-		pvProduction := 0.0
-		for _, childSensor := range s.childSensors {
-			if childSensor.maximumFlow <= 0 {
-				if -childSensor.maximumFlow < childSensor.limit {
-					childSensor.flow = -childSensor.getPVDemand()
-					pvProduction += -childSensor.flow
-				} else {
-					// maximum pv production is limited by sensor limit
-					childSensor.ignoreDuringDistribution = true
-					childSensor.flow = childSensor.maximumFlow
-					pvProduction += -childSensor.flow
-				}
-			} else {
-				if childSensor.maximumFlow < childSensor.limit {
-					pvProduction += childSensor.getPVDemand()
-				}
-			}
-		}
-
-		if s.maximumFlow >= s.limit {
-			for _, pv := range s.pvs {
-				pvProduction += pv.demand - pv.setPoint
-				pv.setPoint = pv.demand
-			}
-		}
-
-		if s.ignoreDuringDistribution {
-			pvProduction += s.flow
-		}
-
-		s.distributePVProduction(pvProduction)
-
-		for _, child := range s.childSensors {
-			child.iterateThroughChildren()
-		}
+		s.overconsumption()
+	} else if s.maximumFlow < 0 {
+		s.overproduction()
 	} else {
-		// overproduction
-		chargerConsumption := 0.0
-		for _, childSensor := range s.childSensors {
-			if childSensor.maximumFlow >= 0 {
-				if childSensor.maximumFlow < childSensor.limit {
-					childSensor.flow = childSensor.getChargerDemand()
-					chargerConsumption += childSensor.flow
-				} else {
-					// maximum charger consumption is limited by sensor limit
-					childSensor.ignoreDuringDistribution = true
-					childSensor.flow = childSensor.maximumFlow
-					chargerConsumption += childSensor.flow
-				}
+		if s.chargerDemand > s.pvDemand {
+			s.overconsumption()
+		} else {
+			s.overproduction()
+		}
+	}
+
+}
+
+func (s *sensor) overconsumption() {
+	pvProduction := 0.0
+	for _, childSensor := range s.childSensors {
+		if childSensor.maximumFlow <= 0 {
+			if -childSensor.maximumFlow < childSensor.limit {
+				childSensor.flow = -childSensor.getPVDemand()
+				pvProduction += -childSensor.flow
 			} else {
-				if -childSensor.maximumFlow < childSensor.limit {
-					chargerConsumption += childSensor.getChargerDemand()
-				}
+				// maximum pv production is limited by sensor limit
+				childSensor.ignoreDuringDistribution = true
+				childSensor.flow = childSensor.maximumFlow
+				pvProduction += -childSensor.flow
+			}
+		} else {
+			if childSensor.maximumFlow < childSensor.limit {
+				pvProduction += childSensor.getPVDemand()
 			}
 		}
+	}
 
-		if -s.maximumFlow >= s.limit {
-			for _, charger := range s.chargers {
-				chargerConsumption += charger.demand - charger.setPoint
-				charger.setPoint = charger.demand
+	if s.maximumFlow >= s.limit {
+		for _, pv := range s.pvs {
+			pvProduction += pv.demand - pv.setPoint
+			pv.setPoint = pv.demand
+		}
+	}
+
+	if s.ignoreDuringDistribution {
+		pvProduction += s.flow
+	}
+
+	s.distributePVProduction(pvProduction)
+
+	for _, child := range s.childSensors {
+		child.iterateThroughChildren()
+	}
+}
+
+func (s *sensor) overproduction() {
+	chargerConsumption := 0.0
+	for _, childSensor := range s.childSensors {
+		if childSensor.maximumFlow >= 0 {
+			if childSensor.maximumFlow < childSensor.limit {
+				childSensor.flow = childSensor.getChargerDemand()
+				chargerConsumption += childSensor.flow
+			} else {
+				// maximum charger consumption is limited by sensor limit
+				childSensor.ignoreDuringDistribution = true
+				childSensor.flow = childSensor.maximumFlow
+				chargerConsumption += childSensor.flow
+			}
+		} else {
+			if -childSensor.maximumFlow < childSensor.limit {
+				chargerConsumption += childSensor.getChargerDemand()
 			}
 		}
+	}
 
-		if s.ignoreDuringDistribution {
-			chargerConsumption += -s.flow
+	if -s.maximumFlow >= s.limit {
+		for _, charger := range s.chargers {
+			chargerConsumption += charger.demand - charger.setPoint
+			charger.setPoint = charger.demand
 		}
+	}
 
-		s.distributeChargerConsumption(chargerConsumption)
+	if s.ignoreDuringDistribution {
+		chargerConsumption += -s.flow
+	}
 
-		for _, child := range s.childSensors {
-			child.iterateThroughChildren()
-		}
+	s.distributeChargerConsumption(chargerConsumption)
+
+	for _, child := range s.childSensors {
+		child.iterateThroughChildren()
 	}
 }
 
@@ -184,6 +205,12 @@ func (s *sensor) distributePVProduction(production float64) {
 	for production > 0 {
 		numberOfGlobalChargers := s.getNumberOfGlobalChargers()
 
+		if numberOfGlobalChargers == 0 {
+			// due to rounding errors, small production can be left over
+			// in this case, we can just return
+			return
+		}
+
 		chargerSetPoint := production / float64(numberOfGlobalChargers)
 		for _, childSensor := range s.childSensors {
 			if childSensor.maximumFlow <= 0 {
@@ -208,6 +235,12 @@ func (s *sensor) distributePVProduction(production float64) {
 func (s *sensor) distributeChargerConsumption(consumption float64) {
 	for consumption > 0 {
 		numberOfGlobalPVs := s.getNumberOfGlobalPVs()
+
+		if numberOfGlobalPVs == 0 {
+			// due to rounding errors, small consumption can be left over
+			// in this case, we can just return
+			return
+		}
 
 		chargerSetPoint := consumption / float64(numberOfGlobalPVs)
 		for _, childSensor := range s.childSensors {

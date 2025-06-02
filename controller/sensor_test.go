@@ -313,6 +313,50 @@ func TestProductionIngoingLimit(t *testing.T) {
 	}
 }
 
+func TestBalanced(t *testing.T) {
+	root := sensor{id: "root", limit: math.MaxFloat64, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor1 := sensor{id: "sensor1", limit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor2 := sensor{id: "sensor2", limit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor3 := sensor{id: "sensor3", limit: 20, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	root.childSensors = append(root.childSensors, &sensor1)
+	root.childSensors = append(root.childSensors, &sensor2)
+	root.childSensors = append(root.childSensors, &sensor3)
+
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger1", demand: 2, setPoint: 0})
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger2", demand: 3, setPoint: 0})
+	sensor1.pvs = append(sensor1.pvs, &component{id: "pv1", demand: 5, setPoint: 0})
+
+	sensor2.chargers = append(sensor2.chargers, &component{id: "charger3", demand: 1, setPoint: 0})
+	sensor2.chargers = append(sensor2.chargers, &component{id: "charger4", demand: 2, setPoint: 0})
+
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv2", demand: 2, setPoint: 0})
+	sensor3.pvs = append(sensor3.pvs, &component{id: "pv3", demand: 1, setPoint: 0})
+
+	root.setSetPoints()
+
+	if math.Abs(sensor1.chargers[0].setPoint-2) > tolerance {
+		t.Errorf("Expected charger1 setPoint to be 2, got %f", sensor1.chargers[0].setPoint)
+	}
+	if math.Abs(sensor1.chargers[1].setPoint-3) > tolerance {
+		t.Errorf("Expected charger2 setPoint to be 3, got %f", sensor1.chargers[1].setPoint)
+	}
+	if math.Abs(sensor1.pvs[0].setPoint-5) > tolerance {
+		t.Errorf("Expected pv1 setPoint to be 5, got %f", sensor1.pvs[0].setPoint)
+	}
+	if math.Abs(sensor2.chargers[0].setPoint-1) > tolerance {
+		t.Errorf("Expected charger3 setPoint to be 1, got %f", sensor2.chargers[0].setPoint)
+	}
+	if math.Abs(sensor2.chargers[1].setPoint-2) > tolerance {
+		t.Errorf("Expected charger4 setPoint to be 2, got %f", sensor2.chargers[1].setPoint)
+	}
+	if math.Abs(sensor3.pvs[0].setPoint-2) > tolerance {
+		t.Errorf("Expected pv2 setPoint to be 2, got %f", sensor3.pvs[0].setPoint)
+	}
+	if math.Abs(sensor3.pvs[1].setPoint-1) > tolerance {
+		t.Errorf("Expected pv3 setPoint to be 1, got %f", sensor3.pvs[1].setPoint)
+	}
+}
+
 func TestConsumptionWithChildren(t *testing.T) {
 	root := sensor{id: "root", limit: math.MaxFloat64, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
 	sensor1 := sensor{id: "sensor1", limit: 1, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
@@ -868,5 +912,45 @@ func TestReset(t *testing.T) {
 	}
 	if math.Abs(sensor3.pvs[1].setPoint-3) > tolerance {
 		t.Errorf("Expected pv3 setPoint to be 3, got %f", sensor3.pvs[1].setPoint)
+	}
+}
+
+func TestZeroLimit(t *testing.T) {
+	root := sensor{id: "root", limit: math.MaxFloat64, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor1 := sensor{id: "sensor1", limit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor2 := sensor{id: "sensor2", limit: 10, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor3 := sensor{id: "sensor3", limit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor4 := sensor{id: "sensor4", limit: 0, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	sensor5 := sensor{id: "sensor5", limit: 10, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
+	root.childSensors = append(root.childSensors, &sensor1)
+	root.childSensors = append(root.childSensors, &sensor3)
+	root.childSensors = append(root.childSensors, &sensor4)
+	sensor1.childSensors = append(sensor1.childSensors, &sensor2)
+	sensor4.childSensors = append(sensor4.childSensors, &sensor5)
+
+	sensor1.chargers = append(sensor1.chargers, &component{id: "charger1", demand: 5, setPoint: 0})
+	sensor2.pvs = append(sensor2.pvs, &component{id: "pv1", demand: 5, setPoint: 0})
+
+	sensor3.chargers = append(sensor3.chargers, &component{id: "charger2", demand: 4, setPoint: 0})
+
+	sensor4.pvs = append(sensor4.pvs, &component{id: "pv2", demand: 3, setPoint: 0})
+	sensor5.chargers = append(sensor5.chargers, &component{id: "charger3", demand: 3, setPoint: 0})
+
+	root.setSetPoints()
+
+	if math.Abs(sensor1.chargers[0].setPoint-5) > tolerance {
+		t.Errorf("Expected charger1 setPoint to be 5, got %f", sensor1.chargers[0].setPoint)
+	}
+	if math.Abs(sensor2.pvs[0].setPoint-5) > tolerance {
+		t.Errorf("Expected pv1 setPoint to be 5, got %f", sensor2.pvs[0].setPoint)
+	}
+	if math.Abs(sensor3.chargers[0].setPoint-0) > tolerance {
+		t.Errorf("Expected charger2 setPoint to be 0, got %f", sensor3.chargers[0].setPoint)
+	}
+	if math.Abs(sensor4.pvs[0].setPoint-3) > tolerance {
+		t.Errorf("Expected pv2 setPoint to be 3, got %f", sensor4.pvs[0].setPoint)
+	}
+	if math.Abs(sensor5.chargers[0].setPoint-3) > tolerance {
+		t.Errorf("Expected charger3 setPoint to be 3, got %f", sensor5.chargers[0].setPoint)
 	}
 }

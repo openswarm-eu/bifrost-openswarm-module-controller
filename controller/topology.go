@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"sync"
 )
 
@@ -25,7 +26,7 @@ func newToplogy() *toplogy {
 		sensors:    make(map[string]*sensor),
 		chargers:   make(map[string]*component),
 		pvs:        make(map[string]*component),
-		rootSensor: &sensor{id: "root", childSensors: make([]*sensor, 0)},
+		rootSensor: &sensor{id: "root", limit: math.MaxFloat64, childSensors: make([]*sensor, 0)},
 	}
 }
 
