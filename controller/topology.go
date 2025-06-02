@@ -48,7 +48,6 @@ func (t *toplogy) addCharger(chargerId string, sensorId string) {
 
 	if _, ok := t.sensors[sensorId]; !ok {
 		t.sensors[sensorId] = &sensor{id: sensorId, childSensors: make([]*sensor, 0), pvs: make([]*component, 0), chargers: make([]*component, 0)}
-		t.rootSensor.childSensors = append(t.rootSensor.childSensors, t.sensors[sensorId])
 	}
 
 	charger := &component{id: chargerId, demand: 0, setPoint: 0}

@@ -52,6 +52,10 @@ func (c *dsoConnector) start(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case topologyUpdate := <-topologyUpdateChannel:
+				if !c.state.leader {
+					continue
+				}
+
 				var topologyMessage common.TopologyMessage
 				err := json.Unmarshal([]byte(topologyUpdate.Params), &topologyMessage)
 				if err != nil {
@@ -65,9 +69,17 @@ func (c *dsoConnector) start(ctx context.Context) error {
 					topologyUpdate.Callback(api.ActionResult{Data: data})
 				})
 			case requestFlowProposal := <-requestFlowProposalChannel:
+				if !c.state.leader {
+					continue
+				}
+
 				c.flowProposalCallback = requestFlowProposal.Callback
 				addEvent("flowProposalRequest")
 			case sensorLimit := <-setSensorLimitsChannel:
+				if !c.state.leader {
+					continue
+				}
+
 				var sensorLimitsMessage common.EnergyCommunitySensorLimitMessage
 				err := json.Unmarshal([]byte(sensorLimit.Data), &sensorLimitsMessage)
 				if err != nil {

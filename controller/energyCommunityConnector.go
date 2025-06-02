@@ -218,7 +218,8 @@ func (c *energyCommunityConnector) getData() {
 				}
 
 				if value.Timestamp.After(startTime) {
-					if charger, ok := c.state.toplogy.pvs[value.Id]; ok {
+					if charger, ok := c.state.toplogy.chargers[value.Id]; ok {
+						log.Println("controller - got charger response", value.Id, value.Value)
 						charger.demand = value.Value
 					}
 

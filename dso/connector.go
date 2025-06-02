@@ -324,7 +324,6 @@ func (c *connector) getSensorMeasurements() {
 	}
 
 	numOutstandingSensorResponses := len(c.state.localSenorInformations)
-	log.Println("dso - waiting for sensor measurements", numOutstandingSensorResponses)
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
