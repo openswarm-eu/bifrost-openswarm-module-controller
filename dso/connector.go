@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"code.siemens.com/energy-community-controller/common"
@@ -18,7 +19,6 @@ type connector struct {
 	ddaConnector *dda.Connector
 	state        *state
 
-	energyCommunityTopologyUpdater     *energyCommunityTopologyUpdater
 	registerCallbacks                  map[string]api.ActionCallback
 	deregisterCallbacks                map[string]api.ActionCallback
 	registerEnergyCommunityCallbacks   map[string]api.ActionCallback
@@ -77,47 +77,43 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Println("dso - got register sensor")
 				var msg common.RegisterSensorMessage
 				if err := json.Unmarshal(registerSensor.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register sensor message, %s", err)
 					continue
 				}
 
+				log.Printf("dso - got register sensor %s", msg.SensorId)
+
 				c.registerCallbacks[msg.SensorId] = registerSensor.Callback
-				newTopology := c.state.cloneTopology()
-				newTopology.Version++
-				removeNodeFromTopology(msg, &newTopology)
-				addNodeToTopology(msg, &newTopology)
-				c.writeToplogyToLog(newTopology)
+				c.writeSensorToLog(msg)
 			case deregisterSensor := <-deregisterSensorChannel:
 				if !c.state.leader {
 					continue
 				}
 
-				log.Println("dso - got deregister sensor")
 				var msg common.RegisterSensorMessage
 				if err := json.Unmarshal(deregisterSensor.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister sensor message, %s", err)
 					continue
 				}
 
+				log.Printf("dso - got deregister sensor %s", msg.SensorId)
+
 				c.deregisterCallbacks[msg.SensorId] = deregisterSensor.Callback
-				newTopology := c.state.cloneTopology()
-				newTopology.Version++
-				removeNodeFromTopology(msg, &newTopology)
-				c.writeToplogyToLog(newTopology)
+				c.removeSensorFromLog(msg)
 			case registerEnergyCommunity := <-registerEnergyCommunityChannel:
 				if !c.state.leader {
 					continue
 				}
 
-				log.Println("dso - got register energy community")
 				var msg common.RegisterEnergyCommunityMessage
 				if err := json.Unmarshal(registerEnergyCommunity.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register energy community message, %s", err)
 					continue
 				}
+
+				log.Printf("dso - got register energy community %s", msg.EnergyCommunityId)
 
 				for _, energyCommunity := range c.state.energyCommunities {
 					if energyCommunity.Id == msg.EnergyCommunityId {
@@ -135,47 +131,58 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Println("dso - got deregister energy community")
 				var msg common.RegisterEnergyCommunityMessage
 				if err := json.Unmarshal(derigsterEnergyCommunity.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister energy community message, %s", err)
 					continue
 				}
 
+				log.Printf("dso - got deregister energy community %s", msg.EnergyCommunityId)
+
 				c.deregisterEnergyCommunityCallbacks[msg.EnergyCommunityId] = derigsterEnergyCommunity.Callback
 				c.state.removeEnergyCommunity(msg.EnergyCommunityId)
 				c.writeEnergyCommunityToLog()
 			case stateChange := <-sc:
-				switch stateChange.Key {
-				case topology_key:
-					var topology topology
-					if err := json.Unmarshal(stateChange.Value, &topology); err != nil {
-						log.Printf("Could not unmarshal incoming topology state change message, %s", err)
-						continue
-					}
+				if strings.HasPrefix(stateChange.Key, sensor_prefix) {
+					sensorId := strings.TrimPrefix(stateChange.Key, sensor_prefix)
+					c.state.newTopology.Version++
 
-					c.state.newTopology = topology
-
-					if !c.state.leader {
-						continue
-					}
-
-					for sensorId, callback := range c.registerCallbacks {
-						if _, ok := c.state.newTopology.Sensors[sensorId]; !ok {
+					if stateChange.Op == stateAPI.InputOpSet {
+						var sensorLogEntry sensorLogEntry
+						if err := json.Unmarshal(stateChange.Value, &sensorLogEntry); err != nil {
+							log.Printf("Could not unmarshal incoming sensor log entry message, %s", err)
 							continue
 						}
-						callback(api.ActionResult{Data: []byte(sensorId)})
-						delete(c.registerCallbacks, sensorId)
+
+						c.state.addNodeToTopology(sensorId, sensorLogEntry.ParentSensorId, sensorLogEntry.Limit)
+
+						if !c.state.leader {
+							continue
+						}
+
+						for sensorId, callback := range c.registerCallbacks {
+							if _, ok := c.state.newTopology.Sensors[sensorId]; !ok {
+								continue
+							}
+							callback(api.ActionResult{Data: []byte(sensorId)})
+							delete(c.registerCallbacks, sensorId)
+						}
 					}
 
 					for sensorId, callback := range c.deregisterCallbacks {
+						c.state.removeNodeFromTopology(sensorId)
+
+						if !c.state.leader {
+							continue
+						}
+
 						if _, ok := c.state.newTopology.Sensors[sensorId]; ok {
 							continue
 						}
 						callback(api.ActionResult{Data: []byte(sensorId)})
 						delete(c.deregisterCallbacks, sensorId)
 					}
-				case energy_community_key:
+				} else if stateChange.Key == energy_community_key {
 					var energyCommunities []energyCommunity
 					if err := json.Unmarshal(stateChange.Value, &energyCommunities); err != nil {
 						log.Printf("Could not unmarshal incoming energy community state change message, %s", err)
@@ -218,16 +225,25 @@ func (c *connector) start(ctx context.Context) error {
 	return nil
 }
 
-func (c *connector) writeToplogyToLog(topology topology) {
-	data, _ := json.Marshal(topology)
+func (c *connector) writeSensorToLog(registerMessage common.RegisterSensorMessage) error {
+	data, _ := json.Marshal(sensorLogEntry{Limit: registerMessage.Limit, ParentSensorId: registerMessage.ParentSensorId})
 
 	input := stateAPI.Input{
 		Op:    stateAPI.InputOpSet,
-		Key:   topology_key,
+		Key:   sensor_prefix + registerMessage.SensorId,
 		Value: data,
 	}
 
-	c.ddaConnector.ProposeInput(c.ctx, &input)
+	return c.ddaConnector.ProposeInput(c.ctx, &input)
+}
+
+func (c *connector) removeSensorFromLog(registerMessage common.RegisterSensorMessage) error {
+	input := stateAPI.Input{
+		Op:  stateAPI.InputOpDelete,
+		Key: sensor_prefix + registerMessage.SensorId,
+	}
+
+	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
 func (c *connector) writeEnergyCommunityToLog() {
@@ -317,6 +333,7 @@ func (c *connector) getSensorMeasurements() {
 	}
 
 	numOutstandingSensorResponses := len(c.state.localSenorInformations)
+	log.Println("dso - waiting for sensor measurements", numOutstandingSensorResponses)
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
@@ -347,6 +364,7 @@ func (c *connector) getSensorMeasurements() {
 
 				if value.Timestamp.After(startTime) {
 					if sensor, ok := c.state.localSenorInformations[value.Id]; ok {
+						log.Println("dso - got sensor measurement", value.Id, value.Value)
 						sensor.measurement = value.Value
 					}
 
@@ -372,5 +390,12 @@ func (c *connector) sendSensorLimits() {
 	}
 }
 
-const topology_key = "topology"
+const sensor_prefix = "sensor_"
+
+// const topology_key = "topology"
 const energy_community_key = "energycommunity"
+
+type sensorLogEntry struct {
+	Limit          float64
+	ParentSensorId string
+}

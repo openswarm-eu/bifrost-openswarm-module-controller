@@ -16,12 +16,12 @@ type energyCommunityTopologyUpdater struct {
 	ddaConnector *dda.Connector
 	state        *state
 
-	writeEnergyCommunityToLogCallback func(topology topology)
+	writeEnergyCommunityToLogCallback func()
 
 	ctx context.Context
 }
 
-func newEnergyCommunityTopologyUpdater(ddaConnector *dda.Connector, state *state, writeEnergyCommunityToLogCallback func(topology topology)) *energyCommunityTopologyUpdater {
+func newEnergyCommunityTopologyUpdater(ddaConnector *dda.Connector, state *state, writeEnergyCommunityToLogCallback func()) *energyCommunityTopologyUpdater {
 	return &energyCommunityTopologyUpdater{
 		ddaConnector:                      ddaConnector,
 		state:                             state,
@@ -81,7 +81,7 @@ outer:
 	}
 
 	if writeEnergyCommunityToLog {
-		tu.writeEnergyCommunityToLogCallback(tu.state.topology)
+		tu.writeEnergyCommunityToLogCallback()
 	}
 }
 

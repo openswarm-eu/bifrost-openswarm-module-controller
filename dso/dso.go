@@ -17,13 +17,14 @@ func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 	state := &state{
 		energyCommunities:           make([]*energyCommunity, 0),
 		topology:                    topology{Version: 0, Sensors: make(map[string]*sensor)},
+		newTopology:                 topology{Version: 0, Sensors: make(map[string]*sensor)},
 		leader:                      false,
 		localSenorInformations:      make(map[string]*localSenorInformation),
 		energyCommunitySensorLimits: make(map[string]common.EnergyCommunitySensorLimitMessage),
 	}
 
 	connector := newConnector(config, ddaConnector, state)
-	energyCommunityTopologyUpdater := newEnergyCommunityTopologyUpdater(ddaConnector, state, connector.writeToplogyToLog)
+	energyCommunityTopologyUpdater := newEnergyCommunityTopologyUpdater(ddaConnector, state, connector.writeEnergyCommunityToLog)
 	logic, err := newLogic(config, connector, energyCommunityTopologyUpdater, state)
 	if err != nil {
 		return nil, err
