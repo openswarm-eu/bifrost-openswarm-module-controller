@@ -115,17 +115,8 @@ func (c *connector) start(ctx context.Context) error {
 
 				log.Printf("dso - got register energy community %s", msg.EnergyCommunityId)
 
-				for _, energyCommunity := range c.state.energyCommunities {
-					if energyCommunity.Id == msg.EnergyCommunityId {
-						log.Printf("Energy community %s already registered", msg.EnergyCommunityId)
-						registerEnergyCommunity.Callback(api.ActionResult{Data: []byte(msg.EnergyCommunityId)})
-						continue
-					}
-				}
-
 				c.registerEnergyCommunityCallbacks[msg.EnergyCommunityId] = registerEnergyCommunity.Callback
-				c.state.energyCommunities = append(c.state.energyCommunities, &energyCommunity{Id: msg.EnergyCommunityId, TopologyVersion: 0})
-				c.writeEnergyCommunityToLog()
+				c.writeEnergyCommunityToLog(msg.EnergyCommunityId, 0)
 			case derigsterEnergyCommunity := <-deregisterEnergyCommunityChannel:
 				if !c.state.leader {
 					continue
@@ -140,8 +131,7 @@ func (c *connector) start(ctx context.Context) error {
 				log.Printf("dso - got deregister energy community %s", msg.EnergyCommunityId)
 
 				c.deregisterEnergyCommunityCallbacks[msg.EnergyCommunityId] = derigsterEnergyCommunity.Callback
-				c.state.removeEnergyCommunity(msg.EnergyCommunityId)
-				c.writeEnergyCommunityToLog()
+				c.removeEnergyCommunityFromLog(msg.EnergyCommunityId)
 			case stateChange := <-sc:
 				if strings.HasPrefix(stateChange.Key, sensor_prefix) {
 					sensorId := strings.TrimPrefix(stateChange.Key, sensor_prefix)
@@ -182,41 +172,33 @@ func (c *connector) start(ctx context.Context) error {
 						callback(api.ActionResult{Data: []byte(sensorId)})
 						delete(c.deregisterCallbacks, sensorId)
 					}
-				} else if stateChange.Key == energy_community_key {
-					var energyCommunities []energyCommunity
-					if err := json.Unmarshal(stateChange.Value, &energyCommunities); err != nil {
-						log.Printf("Could not unmarshal incoming energy community state change message, %s", err)
-						continue
-					}
+				} else if strings.HasPrefix(stateChange.Key, energy_community_prefix) {
+					energyCommunityId := strings.TrimPrefix(stateChange.Key, energy_community_prefix)
 
-					ecs := make([]*energyCommunity, len(energyCommunities))
-					for i := range energyCommunities {
-						ecs[i] = &energyCommunities[i]
-					}
-
-					c.state.energyCommunities = ecs
-					if !c.state.leader {
-						continue
-					}
-
-					for energyCommunityId, callback := range c.registerEnergyCommunityCallbacks {
-						for _, energyCommunity := range c.state.energyCommunities {
-							if energyCommunity.Id == energyCommunityId {
-								callback(api.ActionResult{Data: []byte(energyCommunityId)})
-								delete(c.registerEnergyCommunityCallbacks, energyCommunityId)
-								break
-							}
+					if stateChange.Op == stateAPI.InputOpSet {
+						var energyCommunityLogEntry energyCommunityLogEntry
+						if err := json.Unmarshal(stateChange.Value, &energyCommunityLogEntry); err != nil {
+							log.Printf("Could not unmarshal incoming energy community log entry message, %s", err)
+							continue
 						}
-					}
 
-					for energyCommunityId, callback := range c.deregisterEnergyCommunityCallbacks {
-						for _, energyCommunity := range c.state.energyCommunities {
-							if energyCommunity.Id == energyCommunityId {
-								break
-							}
+						c.state.energyCommunities[energyCommunityId] = energyCommunityLogEntry.Version
+
+						if !c.state.leader {
+							continue
 						}
-						callback(api.ActionResult{Data: []byte(energyCommunityId)})
-						delete(c.deregisterEnergyCommunityCallbacks, energyCommunityId)
+
+						if callback, ok := c.registerEnergyCommunityCallbacks[energyCommunityId]; ok {
+							callback(api.ActionResult{Data: []byte(energyCommunityId)})
+							delete(c.registerEnergyCommunityCallbacks, energyCommunityId)
+						}
+					} else {
+						delete(c.state.energyCommunities, energyCommunityId)
+
+						if callback, ok := c.deregisterEnergyCommunityCallbacks[energyCommunityId]; ok {
+							callback(api.ActionResult{Data: []byte(energyCommunityId)})
+							delete(c.registerEnergyCommunityCallbacks, energyCommunityId)
+						}
 					}
 				}
 			}
@@ -246,16 +228,25 @@ func (c *connector) removeSensorFromLog(registerMessage common.RegisterSensorMes
 	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
-func (c *connector) writeEnergyCommunityToLog() {
-	data, _ := json.Marshal(c.state.energyCommunities)
+func (c *connector) writeEnergyCommunityToLog(id string, version int) {
+	data, _ := json.Marshal(energyCommunityLogEntry{Version: version})
 
 	input := stateAPI.Input{
 		Op:    stateAPI.InputOpSet,
-		Key:   energy_community_key,
+		Key:   energy_community_prefix + id,
 		Value: data,
 	}
 
 	c.ddaConnector.ProposeInput(c.ctx, &input)
+}
+
+func (c *connector) removeEnergyCommunityFromLog(id string) error {
+	input := stateAPI.Input{
+		Op:  stateAPI.InputOpDelete,
+		Key: energy_community_prefix + id,
+	}
+
+	return c.ddaConnector.ProposeInput(c.ctx, &input)
 }
 
 func (c *connector) leaderCh(ctx context.Context) <-chan bool {
@@ -279,8 +270,8 @@ func (c *connector) getFlowProposals() {
 	numOutstandingProposals := len(c.state.energyCommunities)
 	flowProposals := make(chan common.FlowProposalsMessage, numOutstandingProposals)
 
-	for _, energyCommunity := range c.state.energyCommunities {
-		if c.state.topology.Version != energyCommunity.TopologyVersion {
+	for energyCommunityId, topologyVersion := range c.state.energyCommunities {
+		if c.state.topology.Version != topologyVersion {
 			continue
 		}
 		go func(energyCommunityId string) {
@@ -299,7 +290,7 @@ func (c *connector) getFlowProposals() {
 					flowProposals <- flowProposal
 				}
 			}
-		}(energyCommunity.Id)
+		}(energyCommunityId)
 	}
 
 	go func() {
@@ -391,11 +382,13 @@ func (c *connector) sendSensorLimits() {
 }
 
 const sensor_prefix = "sensor_"
-
-// const topology_key = "topology"
-const energy_community_key = "energycommunity"
+const energy_community_prefix = "energy_community_"
 
 type sensorLogEntry struct {
 	Limit          float64
 	ParentSensorId string
+}
+
+type energyCommunityLogEntry struct {
+	Version int
 }

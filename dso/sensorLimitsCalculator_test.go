@@ -8,17 +8,17 @@ import (
 
 func TestCalculateSensorLimit(t *testing.T) {
 	state := &state{
-		energyCommunities: make([]*energyCommunity, 0),
+		energyCommunities: make(map[string]int),
 		topology: topology{
 			Version: 1,
 			Sensors: make(map[string]*sensor),
 		},
 		localSenorInformations: make(map[string]*localSenorInformation),
 	}
-	state.energyCommunities = append(state.energyCommunities, &energyCommunity{Id: "ec1"})
-	state.energyCommunities = append(state.energyCommunities, &energyCommunity{Id: "ec2"})
-	state.energyCommunities = append(state.energyCommunities, &energyCommunity{Id: "ec3"})
-	state.energyCommunities = append(state.energyCommunities, &energyCommunity{Id: "ec4"})
+	state.energyCommunities["ec1"] = 0
+	state.energyCommunities["ec2"] = 0
+	state.energyCommunities["ec3"] = 0
+	state.energyCommunities["ec4"] = 0
 	state.topology.Sensors["sensor1"] = &sensor{Limit: 10}
 	state.topology.Sensors["sensor2"] = &sensor{Limit: 5}
 	state.topology.Sensors["sensor3"] = &sensor{Limit: 5}
@@ -103,14 +103,14 @@ func TestCalculateSensorLimit(t *testing.T) {
 
 func TestCalculateSensorLimitZero(t *testing.T) {
 	state := &state{
-		energyCommunities: make([]*energyCommunity, 0),
+		energyCommunities: make(map[string]int),
 		topology: topology{
 			Version: 1,
 			Sensors: make(map[string]*sensor),
 		},
 		localSenorInformations: make(map[string]*localSenorInformation),
 	}
-	state.energyCommunities = append(state.energyCommunities, &energyCommunity{Id: "ec1"})
+	state.energyCommunities["ec1"] = 0
 	state.topology.Sensors["sensor1"] = &sensor{Limit: 10}
 	state.localSenorInformations["sensor1"] = &localSenorInformation{
 		measurement: 9,

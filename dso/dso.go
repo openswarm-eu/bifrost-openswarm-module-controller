@@ -15,7 +15,7 @@ type Dso struct {
 
 func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 	state := &state{
-		energyCommunities:           make([]*energyCommunity, 0),
+		energyCommunities:           make(map[string]int),
 		topology:                    topology{Version: 0, Sensors: make(map[string]*sensor)},
 		newTopology:                 topology{Version: 0, Sensors: make(map[string]*sensor)},
 		leader:                      false,

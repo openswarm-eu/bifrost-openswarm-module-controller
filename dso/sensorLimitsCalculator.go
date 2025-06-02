@@ -19,8 +19,8 @@ func newSensorLimitsCalculator(state *state) sensorLimitsCalculator {
 func (l sensorLimitsCalculator) calculateSensorLimits() {
 	l.state.energyCommunitySensorLimits = make(map[string]common.EnergyCommunitySensorLimitMessage)
 
-	for _, energyCommunity := range l.state.energyCommunities {
-		l.state.energyCommunitySensorLimits[energyCommunity.Id] = common.EnergyCommunitySensorLimitMessage{SensorLimits: make(map[string]float64)}
+	for energyCommunityId := range l.state.energyCommunities {
+		l.state.energyCommunitySensorLimits[energyCommunityId] = common.EnergyCommunitySensorLimitMessage{SensorLimits: make(map[string]float64)}
 	}
 
 	for sensorId, localSensorInformation := range l.state.localSenorInformations {

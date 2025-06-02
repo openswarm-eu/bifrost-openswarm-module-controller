@@ -6,7 +6,7 @@ import (
 
 type state struct {
 	// exchanged via raft
-	energyCommunities []*energyCommunity
+	energyCommunities map[string]int
 	topology          topology
 
 	// local only
@@ -14,11 +14,6 @@ type state struct {
 	newTopology                 topology
 	localSenorInformations      map[string]*localSenorInformation                   // sensorId -> localSenorInformation
 	energyCommunitySensorLimits map[string]common.EnergyCommunitySensorLimitMessage // energyCommunityId -> FlowSetPointsMessage
-}
-
-type energyCommunity struct {
-	Id              string
-	TopologyVersion int
 }
 
 type topology struct {
@@ -36,14 +31,6 @@ type localSenorInformation struct {
 	measurement    float64
 	sumECLimits    float64
 	ecFlowProposal map[string]common.FlowProposal // energyCommunityId --> FlowProposal
-}
-
-func (s *state) removeEnergyCommunity(energyCommunityId string) {
-	for i, energyCommunity := range s.energyCommunities {
-		if energyCommunity.Id == energyCommunityId {
-			s.energyCommunities = append(s.energyCommunities[:i], s.energyCommunities[i+1:]...)
-		}
-	}
 }
 
 func (s *state) updateLocalSensorInformation() {
