@@ -259,10 +259,6 @@ func (c *connector) getFlowProposals() {
 		return
 	}
 
-	for _, localSenorInformation := range c.state.localSenorInformations {
-		localSenorInformation.ecFlowProposal = make(map[string]common.FlowProposal)
-	}
-
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		time.Duration(2*time.Second))
@@ -293,36 +289,30 @@ func (c *connector) getFlowProposals() {
 		}(energyCommunityId)
 	}
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
+	for {
+		select {
+		case <-ctx.Done():
+			cancel()
+			addEvent("flowProposalsReceived")
+			return
+		case energyCommunityProposal := <-flowProposals:
+			for sensorId, flowProposal := range energyCommunityProposal.Proposals {
+				if sensor, ok := c.state.localSenorInformations[sensorId]; ok {
+					log.Printf("dso - received flow proposal for %s from %s: %+v", sensorId, energyCommunityProposal.EnergyCommunityId, flowProposal)
+					sensor.ecFlowProposal[energyCommunityProposal.EnergyCommunityId] = flowProposal
+				}
+			}
+			numOutstandingProposals--
+			if numOutstandingProposals == 0 {
 				cancel()
 				addEvent("flowProposalsReceived")
 				return
-			case energyCommunityProposal := <-flowProposals:
-				for sensorId, flowProposal := range energyCommunityProposal.Proposals {
-					if sensor, ok := c.state.localSenorInformations[sensorId]; ok {
-						log.Printf("dso - received flow proposal for %s from %s: %+v", sensorId, energyCommunityProposal.EnergyCommunityId, flowProposal)
-						sensor.ecFlowProposal[energyCommunityProposal.EnergyCommunityId] = flowProposal
-					}
-				}
-				numOutstandingProposals--
-				if numOutstandingProposals == 0 {
-					cancel()
-					addEvent("flowProposalsReceived")
-					return
-				}
 			}
 		}
-	}()
+	}
 }
 
 func (c *connector) getSensorMeasurements() {
-	for _, sensor := range c.state.localSenorInformations {
-		sensor.measurement = 0
-	}
-
 	numOutstandingSensorResponses := len(c.state.localSenorInformations)
 
 	ctx, cancel := context.WithTimeout(
@@ -338,40 +328,39 @@ func (c *connector) getSensorMeasurements() {
 
 	// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
 	startTime := time.Now().Add(-1 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				cancel()
-				addEvent("sensorMeasurementsReceived")
-				return
-			case sensorResponse := <-sensorResponses:
-				var value common.Value
-				if err := json.Unmarshal(sensorResponse.Data, &value); err != nil {
-					log.Printf("Could not unmarshal incoming sensor message, %s", err)
-					continue
+	for {
+		select {
+		case <-ctx.Done():
+			cancel()
+			addEvent("sensorMeasurementsReceived")
+			return
+		case sensorResponse := <-sensorResponses:
+			var value common.Value
+			if err := json.Unmarshal(sensorResponse.Data, &value); err != nil {
+				log.Printf("Could not unmarshal incoming sensor message, %s", err)
+				continue
+			}
+
+			if value.Timestamp.After(startTime) {
+				if sensor, ok := c.state.localSenorInformations[value.Id]; ok {
+					log.Println("dso - got sensor measurement", value.Id, value.Value)
+					sensor.measurement = value.Value
 				}
 
-				if value.Timestamp.After(startTime) {
-					if sensor, ok := c.state.localSenorInformations[value.Id]; ok {
-						log.Println("dso - got sensor measurement", value.Id, value.Value)
-						sensor.measurement = value.Value
-					}
-
-					numOutstandingSensorResponses--
-					if numOutstandingSensorResponses == 0 {
-						cancel()
-						addEvent("sensorMeasurementsReceived")
-						return
-					}
+				numOutstandingSensorResponses--
+				if numOutstandingSensorResponses == 0 {
+					cancel()
+					addEvent("sensorMeasurementsReceived")
+					return
 				}
 			}
 		}
-	}()
+	}
 }
 
 func (c *connector) sendSensorLimits() {
 	for energyCommunityId, sensorLimitsMessage := range c.state.energyCommunitySensorLimits {
+		log.Println("dso - sending sensor limits for energy community", energyCommunityId, sensorLimitsMessage)
 		data, _ := json.Marshal(sensorLimitsMessage)
 
 		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_SENSOR_LIMITS_EVENT, energyCommunityId), Id: uuid.NewString(), Source: "dso", Data: data}); err != nil {

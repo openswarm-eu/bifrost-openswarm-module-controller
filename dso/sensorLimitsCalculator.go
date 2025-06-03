@@ -21,6 +21,9 @@ func (l sensorLimitsCalculator) calculateSensorLimits() {
 
 	for energyCommunityId := range l.state.energyCommunities {
 		l.state.energyCommunitySensorLimits[energyCommunityId] = common.EnergyCommunitySensorLimitMessage{SensorLimits: make(map[string]float64)}
+		for sensorId := range l.state.localSenorInformations {
+			l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId] = 0.0
+		}
 	}
 
 	for sensorId, localSensorInformation := range l.state.localSenorInformations {

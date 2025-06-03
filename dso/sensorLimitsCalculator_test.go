@@ -116,7 +116,38 @@ func TestCalculateSensorLimitZero(t *testing.T) {
 		measurement: 9,
 		sumECLimits: 5,
 		ecFlowProposal: map[string]common.FlowProposal{
-			"ec1": {Flow: 0, NumberOfNodes: 1},
+			"ec1": {Flow: 0, NumberOfNodes: 0},
+		},
+	}
+
+	calculator := newSensorLimitsCalculator(state)
+	calculator.calculateSensorLimits()
+
+	if state.energyCommunitySensorLimits["ec1"].SensorLimits["sensor1"] != 0 {
+		t.Errorf("Expected sensor1 limit for ec1 to be 0, got %f", state.energyCommunitySensorLimits["ec1"].SensorLimits["sensor1"])
+	}
+
+	if len(state.energyCommunitySensorLimits) != 1 {
+		t.Errorf("Expected 1 energy community sensor limits, got %d", len(state.energyCommunitySensorLimits))
+	}
+}
+
+func TestCalculatOverload(t *testing.T) {
+	state := &state{
+		energyCommunities: make(map[string]int),
+		topology: topology{
+			Version: 1,
+			Sensors: make(map[string]*sensor),
+		},
+		localSenorInformations: make(map[string]*localSenorInformation),
+	}
+	state.energyCommunities["ec1"] = 0
+	state.topology.Sensors["sensor1"] = &sensor{Limit: 10}
+	state.localSenorInformations["sensor1"] = &localSenorInformation{
+		measurement: 15,
+		sumECLimits: 3,
+		ecFlowProposal: map[string]common.FlowProposal{
+			"ec1": {Flow: 0, NumberOfNodes: 0},
 		},
 	}
 
