@@ -37,12 +37,14 @@ func main() {
 	var measurement float64
 	var err error
 
+	registrationTimeout := 2000 * time.Millisecond
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
 		log.Println("shutting down")
 
-		deregister(ctx, ddaConnector, sensorId, parentSensorId)
+		deregister(ctx, ddaConnector, sensorId, parentSensorId, registrationTimeout)
 		cancel()
 
 		if ddaConnector != nil {
@@ -88,7 +90,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	register(ctx, ddaConnector, sensorId, parentSensorId, limit)
+	register(ctx, ddaConnector, sensorId, parentSensorId, limit, registrationTimeout)
 
 	measurementChannel, err := mqttConnector.SubscribeToSensorMeasurements(ctx)
 	if err != nil {
@@ -118,7 +120,7 @@ func main() {
 	}
 }
 
-func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, limit float64) {
+func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, limit float64, registrationTimeout time.Duration) {
 	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Limit: limit, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
@@ -127,7 +129,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string,
 
 		registerContext, registerCancel := context.WithTimeout(
 			ctx,
-			time.Duration(5*time.Second))
+			registrationTimeout)
 
 		result, err := ddaConnector.PublishAction(registerContext, api.Action{Type: common.REGISTER_ACTION, Id: uuid.NewString(), Source: sensorId, Params: data})
 		if err != nil {
@@ -148,7 +150,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string,
 	}
 }
 
-func deregister(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string) {
+func deregister(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, registrationTimeout time.Duration) {
 	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
@@ -157,7 +159,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, sensorId strin
 
 		deregisterContext, deregisterCancel := context.WithTimeout(
 			ctx,
-			time.Duration(5*time.Second))
+			registrationTimeout)
 
 		result, err := ddaConnector.PublishAction(deregisterContext, api.Action{Type: common.DEREGISTER_ACTION, Id: uuid.NewString(), Source: sensorId, Params: data})
 		if err != nil {

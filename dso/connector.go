@@ -261,7 +261,7 @@ func (c *connector) getFlowProposals() {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		time.Duration(2*time.Second))
+		time.Duration(c.config.FlowProposalsTimeout))
 
 	numOutstandingProposals := len(c.state.energyCommunities)
 	flowProposals := make(chan common.FlowProposalsMessage, numOutstandingProposals)
@@ -317,7 +317,7 @@ func (c *connector) getSensorMeasurements() {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		time.Duration(c.config.WaitTimeForInputs))
+		time.Duration(c.config.SensorMeasurementsTimeout))
 
 	sensorResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_SENSOR_MEASUREMENT_ACTION, Id: uuid.NewString(), Source: "dso"})
 	if err != nil {

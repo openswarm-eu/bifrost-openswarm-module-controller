@@ -24,7 +24,7 @@ func NewDso(config Config, ddaConnector *dda.Connector) (*Dso, error) {
 	}
 
 	connector := newConnector(config, ddaConnector, state)
-	energyCommunityTopologyUpdater := newEnergyCommunityTopologyUpdater(ddaConnector, state, connector.writeEnergyCommunityToLog)
+	energyCommunityTopologyUpdater := newEnergyCommunityTopologyUpdater(config, ddaConnector, state, connector.writeEnergyCommunityToLog)
 	logic, err := newLogic(config, connector, energyCommunityTopologyUpdater, state)
 	if err != nil {
 		return nil, err

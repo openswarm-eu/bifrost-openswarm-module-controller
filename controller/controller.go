@@ -22,7 +22,7 @@ func NewController(config Config, energyCommunityId string, ddaConnectorEnergyCo
 		toplogy:         newToplogy(),
 	}
 	energyCommunityConnector := newEnergyCommunityConnector(config, energyCommunityId, ddaConnectorEnergyCommunity, state)
-	dsoConnector := newDsoConnector(energyCommunityId, ddaConnectorDso, energyCommunityConnector, state)
+	dsoConnector := newDsoConnector(config, energyCommunityId, ddaConnectorDso, energyCommunityConnector, state)
 	logic, err := newLogic(config, energyCommunityConnector, dsoConnector, state)
 	if err != nil {
 		return nil, err

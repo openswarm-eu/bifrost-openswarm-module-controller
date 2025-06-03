@@ -5,13 +5,17 @@ import (
 )
 
 type Config struct {
-	Periode           time.Duration
-	WaitTimeForInputs time.Duration
+	Periode                              time.Duration
+	FlowProposalsTimeout                 time.Duration
+	SensorMeasurementsTimeout            time.Duration
+	TopologyUpdateAcknowledgementTimeout time.Duration
 }
 
 func NewConfig() Config {
 	return Config{
-		Periode:           1000 * time.Millisecond,
-		WaitTimeForInputs: 100 * time.Millisecond,
+		Periode:                              1000 * time.Millisecond,
+		FlowProposalsTimeout:                 250 * time.Millisecond,
+		SensorMeasurementsTimeout:            100 * time.Millisecond,
+		TopologyUpdateAcknowledgementTimeout: 100 * time.Millisecond,
 	}
 }

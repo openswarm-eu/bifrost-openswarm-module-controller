@@ -162,7 +162,7 @@ func (c *energyCommunityConnector) getData() {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		time.Duration(500*time.Millisecond))
+		time.Duration(c.config.NodeDataTimeout))
 
 	outstandingPVResponses := len(c.state.toplogy.pvs)
 	outstandingChargerResponses := len(c.state.toplogy.chargers)

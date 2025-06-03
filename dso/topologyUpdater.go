@@ -13,6 +13,7 @@ import (
 )
 
 type energyCommunityTopologyUpdater struct {
+	config       Config
 	ddaConnector *dda.Connector
 	state        *state
 
@@ -21,8 +22,9 @@ type energyCommunityTopologyUpdater struct {
 	ctx context.Context
 }
 
-func newEnergyCommunityTopologyUpdater(ddaConnector *dda.Connector, state *state, writeEnergyCommunityToLogCallback func(id string, version int)) *energyCommunityTopologyUpdater {
+func newEnergyCommunityTopologyUpdater(config Config, ddaConnector *dda.Connector, state *state, writeEnergyCommunityToLogCallback func(id string, version int)) *energyCommunityTopologyUpdater {
 	return &energyCommunityTopologyUpdater{
+		config:                            config,
 		ddaConnector:                      ddaConnector,
 		state:                             state,
 		writeEnergyCommunityToLogCallback: writeEnergyCommunityToLogCallback,
@@ -57,7 +59,7 @@ func (tu *energyCommunityTopologyUpdater) sendUpdatesToEnergyCommunities() {
 	updateSuccessChannel := make(chan struct{}, outstandingTopologyUpdates)
 	ctx, cancel := context.WithTimeout(
 		tu.ctx,
-		time.Duration(500*time.Millisecond))
+		time.Duration(tu.config.TopologyUpdateAcknowledgementTimeout))
 	for _, energyCommunity := range energyCommunityWithOldTopology {
 		go tu.sendUpdateToEnergyCommunity(energyCommunity, data, ctx, updateSuccessChannel)
 	}

@@ -40,6 +40,7 @@ func main() {
 
 	maximumAcceptableSetPointOffset := 1000 * time.Millisecond
 	controllerPeriode := 1000 * time.Millisecond
+	registrationTimeout := 2000 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -48,7 +49,7 @@ func main() {
 
 		cancel()
 
-		deregister(ctx, ddaConnectorEnergyCommunity, nodeId, sensorId)
+		deregister(ctx, ddaConnectorEnergyCommunity, nodeId, sensorId, registrationTimeout)
 		if ctrl != nil {
 			ctrl.Stop()
 		}
@@ -97,7 +98,6 @@ func main() {
 		}
 
 		controllerConfig := controller.NewConfig()
-		controllerConfig.Periode = controllerPeriode
 
 		if ctrl, err = controller.NewController(controllerConfig, energyCommunityId, ddaConnectorEnergyCommunity, ddaConnectorDso); err != nil {
 			log.Fatalln(err)
@@ -116,7 +116,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	register(ctx, ddaConnectorEnergyCommunity, nodeId, sensorId)
+	register(ctx, ddaConnectorEnergyCommunity, nodeId, sensorId, registrationTimeout)
 
 	demandChannel, err := mqttConnector.SubscribeToDemands(ctx)
 	if err != nil {
@@ -177,7 +177,7 @@ func main() {
 	}
 }
 
-func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string) {
+func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
 	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.CHARGER_NODE_TYPE, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
@@ -186,7 +186,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 
 		registerContext, registerCancel := context.WithTimeout(
 			ctx,
-			time.Duration(5*time.Second))
+			time.Duration(registrationTimeout))
 
 		result, err := ddaConnector.PublishAction(registerContext, api.Action{Type: common.REGISTER_ACTION, Id: uuid.NewString(), Source: nodeId, Params: data})
 		if err != nil {
@@ -207,7 +207,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 	}
 }
 
-func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string) {
+func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
 	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.CHARGER_NODE_TYPE, Timestamp: time.Now()}
 	data, _ := json.Marshal(registerMessage)
 
@@ -216,7 +216,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string,
 
 		deregisterContext, deregisterCancel := context.WithTimeout(
 			ctx,
-			time.Duration(5*time.Second))
+			time.Duration(registrationTimeout))
 
 		result, err := ddaConnector.PublishAction(deregisterContext, api.Action{Type: common.DEREGISTER_ACTION, Id: uuid.NewString(), Source: nodeId, Params: data})
 		if err != nil {

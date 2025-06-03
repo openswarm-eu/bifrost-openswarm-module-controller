@@ -13,6 +13,7 @@ import (
 )
 
 type dsoConnector struct {
+	config                   Config
 	energyCommunityId        string
 	ddaConnector             *dda.Connector
 	energyCommunityConnector *energyCommunityConnector
@@ -20,8 +21,9 @@ type dsoConnector struct {
 	flowProposalCallback     api.ActionCallback
 }
 
-func newDsoConnector(energyCommunityId string, ddaConnector *dda.Connector, energyCommunityConnector *energyCommunityConnector, state *state) *dsoConnector {
+func newDsoConnector(config Config, energyCommunityId string, ddaConnector *dda.Connector, energyCommunityConnector *energyCommunityConnector, state *state) *dsoConnector {
 	return &dsoConnector{
+		config:                   config,
 		energyCommunityId:        energyCommunityId,
 		ddaConnector:             ddaConnector,
 		energyCommunityConnector: energyCommunityConnector,
@@ -109,9 +111,11 @@ func (c *dsoConnector) stop() {
 		for {
 			log.Println("controller - trying to unregister energy community at DSO")
 
-			registerContext, registerCancel := context.WithCancel(context.Background())
+			deregisterContext, deregisterCancel := context.WithTimeout(
+				context.Background(),
+				time.Duration(c.config.RegistrationTimeout))
 
-			result, err := c.ddaConnector.PublishAction(registerContext, api.Action{Type: common.DEREGISTER_ENERGY_COMMUNITY_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId, Params: data})
+			result, err := c.ddaConnector.PublishAction(deregisterContext, api.Action{Type: common.DEREGISTER_ENERGY_COMMUNITY_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId, Params: data})
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -119,13 +123,13 @@ func (c *dsoConnector) stop() {
 			select {
 			case <-result:
 				log.Println("controller - energy community deregistered")
-				registerCancel()
+				deregisterCancel()
 				return
-			case <-time.After(5 * time.Second):
-				registerCancel()
-			case <-registerContext.Done():
-				registerCancel()
-				return
+			case <-deregisterContext.Done():
+				if deregisterContext.Err() == context.Canceled {
+					deregisterCancel()
+					return
+				}
 			}
 		}
 	}
@@ -139,7 +143,9 @@ func (c *dsoConnector) registerAtDso(ctx context.Context) {
 		for {
 			log.Println("controller - trying to register energy community at DSO")
 
-			registerContext, registerCancel := context.WithCancel(ctx)
+			registerContext, registerCancel := context.WithTimeout(
+				ctx,
+				time.Duration(c.config.RegistrationTimeout))
 
 			result, err := c.ddaConnector.PublishAction(registerContext, api.Action{Type: common.REGISTER_ENERGY_COMMUNITY_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId, Params: data})
 			if err != nil {
@@ -152,11 +158,11 @@ func (c *dsoConnector) registerAtDso(ctx context.Context) {
 				registerCancel()
 				c.energyCommunityConnector.writeSuccessfullDsoRegistrationToLog()
 				return
-			case <-time.After(5 * time.Second):
-				registerCancel()
 			case <-registerContext.Done():
-				registerCancel()
-				return
+				if registerContext.Err() == context.Canceled {
+					registerCancel()
+					return
+				}
 			}
 		}
 	}()
