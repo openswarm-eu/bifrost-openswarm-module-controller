@@ -51,7 +51,7 @@ func (tu *energyCommunityTopologyUpdater) sendUpdatesToEnergyCommunities() {
 		topology[sensorId] = sensor.ChildrenSensorId
 	}
 
-	message := common.TopologyMessage{Topology: topology, Timestamp: time.Now().Unix()}
+	message := common.TopologyMessage{Topology: topology, Timestamp: time.Now()}
 	data, _ := json.Marshal(message)
 
 	updateSuccessChannel := make(chan struct{}, outstandingTopologyUpdates)

@@ -53,7 +53,7 @@ type EnergyCommunitySensorLimitMessage struct {
 
 type TopologyMessage struct {
 	Topology  map[string][]string // parentSensorId -> []childSensorId
-	Timestamp int64
+	Timestamp time.Time
 }
 
 const REGISTER_ACTION = "com.siemens.openswarm.register"
