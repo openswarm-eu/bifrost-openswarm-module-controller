@@ -9,6 +9,7 @@ type Config struct {
 	FlowProposalsTimeout                 time.Duration
 	SensorMeasurementsTimeout            time.Duration
 	TopologyUpdateAcknowledgementTimeout time.Duration
+	MaximumMessageAge                    time.Duration
 }
 
 func NewConfig() Config {
@@ -17,5 +18,6 @@ func NewConfig() Config {
 		FlowProposalsTimeout:                 250 * time.Millisecond,
 		SensorMeasurementsTimeout:            100 * time.Millisecond,
 		TopologyUpdateAcknowledgementTimeout: 100 * time.Millisecond,
+		MaximumMessageAge:                    100 * time.Millisecond,
 	}
 }

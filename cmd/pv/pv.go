@@ -174,11 +174,11 @@ func main() {
 }
 
 func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
-	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
-	data, _ := json.Marshal(registerMessage)
-
 	for {
 		log.Println("pv - trying to register node")
+
+		registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
+		data, _ := json.Marshal(registerMessage)
 
 		registerContext, registerCancel := context.WithTimeout(
 			ctx,
@@ -204,11 +204,11 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 }
 
 func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
-	registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
-	data, _ := json.Marshal(registerMessage)
-
 	for {
 		log.Println("pv - trying to deregister node")
+
+		deregisterMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
+		data, _ := json.Marshal(deregisterMessage)
 
 		deregisterContext, deregisterCancel := context.WithTimeout(
 			ctx,

@@ -65,6 +65,10 @@ func (c *dsoConnector) start(ctx context.Context) error {
 					continue
 				}
 
+				if topologyMessage.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
+					continue
+				}
+
 				log.Printf("controller - received topology update message %s", topologyMessage.Topology)
 
 				c.energyCommunityConnector.writeTopologyToLog(topologyMessage, func(data []byte) {
@@ -89,6 +93,10 @@ func (c *dsoConnector) start(ctx context.Context) error {
 					continue
 				}
 
+				if sensorLimitsMessage.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
+					continue
+				}
+
 				log.Printf("controller - received sensor limits message %v", sensorLimitsMessage.SensorLimits)
 
 				c.state.toplogy.setAllSensorLimits(0)
@@ -105,11 +113,11 @@ func (c *dsoConnector) start(ctx context.Context) error {
 
 func (c *dsoConnector) stop() {
 	if c.state.registeredAtDso && c.state.clusterMembers == 1 {
-		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
-		data, _ := json.Marshal(registerMessage)
-
 		for {
 			log.Println("controller - trying to unregister energy community at DSO")
+
+			deregisterMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
+			data, _ := json.Marshal(deregisterMessage)
 
 			deregisterContext, deregisterCancel := context.WithTimeout(
 				context.Background(),
@@ -137,11 +145,11 @@ func (c *dsoConnector) stop() {
 
 func (c *dsoConnector) registerAtDso(ctx context.Context) {
 	go func() {
-		registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
-		data, _ := json.Marshal(registerMessage)
-
 		for {
 			log.Println("controller - trying to register energy community at DSO")
+
+			registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
+			data, _ := json.Marshal(registerMessage)
 
 			registerContext, registerCancel := context.WithTimeout(
 				ctx,

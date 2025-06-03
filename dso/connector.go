@@ -83,6 +83,10 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
+				if msg.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
+					continue
+				}
+
 				log.Printf("dso - got register sensor %s", msg.SensorId)
 
 				c.registerCallbacks[msg.SensorId] = registerSensor.Callback
@@ -95,6 +99,10 @@ func (c *connector) start(ctx context.Context) error {
 				var msg common.RegisterSensorMessage
 				if err := json.Unmarshal(deregisterSensor.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister sensor message, %s", err)
+					continue
+				}
+
+				if msg.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
 					continue
 				}
 
@@ -113,6 +121,10 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
+				if msg.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
+					continue
+				}
+
 				log.Printf("dso - got register energy community %s", msg.EnergyCommunityId)
 
 				c.registerEnergyCommunityCallbacks[msg.EnergyCommunityId] = registerEnergyCommunity.Callback
@@ -125,6 +137,10 @@ func (c *connector) start(ctx context.Context) error {
 				var msg common.RegisterEnergyCommunityMessage
 				if err := json.Unmarshal(derigsterEnergyCommunity.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister energy community message, %s", err)
+					continue
+				}
+
+				if msg.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
 					continue
 				}
 
@@ -266,6 +282,8 @@ func (c *connector) getFlowProposals() {
 	numOutstandingProposals := len(c.state.energyCommunities)
 	flowProposals := make(chan common.FlowProposalsMessage, numOutstandingProposals)
 
+	// to get an "AfterEqual()", subtract some time from the current time
+	startTime := time.Now().Add(-1 * time.Millisecond)
 	for energyCommunityId, topologyVersion := range c.state.energyCommunities {
 		if c.state.topology.Version != topologyVersion {
 			continue
@@ -283,7 +301,9 @@ func (c *connector) getFlowProposals() {
 				if err := json.Unmarshal(msg.Data, &flowProposal); err != nil {
 					log.Printf("could not unmarshal flow proposal - %s", err)
 				} else {
-					flowProposals <- flowProposal
+					if flowProposal.Timestamp.After(startTime) {
+						flowProposals <- flowProposal
+					}
 				}
 			}
 		}(energyCommunityId)
@@ -326,8 +346,8 @@ func (c *connector) getSensorMeasurements() {
 		return
 	}
 
-	// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
-	startTime := time.Now().Add(-1 * time.Second)
+	// to get an "AfterEqual()", subtract some time from the current time
+	startTime := time.Now().Add(-1 * time.Millisecond)
 	for {
 		select {
 		case <-ctx.Done():
@@ -361,6 +381,7 @@ func (c *connector) getSensorMeasurements() {
 func (c *connector) sendSensorLimits() {
 	for energyCommunityId, sensorLimitsMessage := range c.state.energyCommunitySensorLimits {
 		log.Println("dso - sending sensor limits for energy community", energyCommunityId, sensorLimitsMessage)
+		sensorLimitsMessage.Timestamp = time.Now()
 		data, _ := json.Marshal(sensorLimitsMessage)
 
 		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_SENSOR_LIMITS_EVENT, energyCommunityId), Id: uuid.NewString(), Source: "dso", Data: data}); err != nil {

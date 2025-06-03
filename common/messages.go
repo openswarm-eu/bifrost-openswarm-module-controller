@@ -49,6 +49,7 @@ type FlowProposal struct {
 
 type EnergyCommunitySensorLimitMessage struct {
 	SensorLimits map[string]float64 // sensorId -> limit
+	Timestamp    time.Time
 }
 
 type TopologyMessage struct {

@@ -121,11 +121,11 @@ func main() {
 }
 
 func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, limit float64, registrationTimeout time.Duration) {
-	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Limit: limit, Timestamp: time.Now()}
-	data, _ := json.Marshal(registerMessage)
-
 	for {
 		log.Println("sensor - trying to register sensor")
+
+		registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Limit: limit, Timestamp: time.Now()}
+		data, _ := json.Marshal(registerMessage)
 
 		registerContext, registerCancel := context.WithTimeout(
 			ctx,
@@ -151,11 +151,11 @@ func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string,
 }
 
 func deregister(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, registrationTimeout time.Duration) {
-	registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Timestamp: time.Now()}
-	data, _ := json.Marshal(registerMessage)
-
 	for {
 		log.Println("sensor - trying to deregister sensor")
+
+		deregisterMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Timestamp: time.Now()}
+		data, _ := json.Marshal(deregisterMessage)
 
 		deregisterContext, deregisterCancel := context.WithTimeout(
 			ctx,

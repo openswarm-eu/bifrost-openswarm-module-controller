@@ -67,13 +67,17 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Println("controller - got register node")
 				var msg common.RegisterNodeMessage
 				if err := json.Unmarshal(registerNode.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming register message, %s", err)
 					continue
 				}
 
+				if msg.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
+					continue
+				}
+
+				log.Println("controller - got register node")
 				c.callbackManager.addCallback(msg.NodeId, func(data []byte) {
 					registerNode.Callback(api.ActionResult{Data: data})
 				})
@@ -83,12 +87,17 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Println("controller - got deregister node")
 				var msg common.RegisterNodeMessage
 				if err := json.Unmarshal(deregisterNode.Params, &msg); err != nil {
 					log.Printf("Could not unmarshal incoming deregister message, %s", err)
 					continue
 				}
+
+				if msg.Timestamp.Before(time.Now().Add(-c.config.MaximumMessageAge)) {
+					continue
+				}
+
+				log.Println("controller - got deregister node")
 
 				c.callbackManager.addCallback(msg.NodeId, func(data []byte) {
 					deregisterNode.Callback(api.ActionResult{Data: data})
@@ -181,8 +190,8 @@ func (c *energyCommunityConnector) getData() {
 		return
 	}
 
-	// to get an "AfterEqual()", subtract the minimal timeresolution of message timestamps (unix time - which are in seconds)
-	startTime := time.Now().Add(-1 * time.Second)
+	// to get an "AfterEqual()", subtract some time from the current time
+	startTime := time.Now().Add(-1 * time.Millisecond)
 	go func() {
 		for {
 			select {
