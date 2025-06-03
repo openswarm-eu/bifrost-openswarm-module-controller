@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"time"
@@ -42,7 +43,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
-		log.Println("shutting down")
+		slog.Info("shutting down")
 
 		deregister(ctx, ddaConnector, sensorId, parentSensorId, registrationTimeout)
 		cancel()
@@ -108,7 +109,7 @@ func main() {
 	for {
 		select {
 		case msrmt := <-measurementChannel:
-			log.Printf("sensor - got new measurement: %f", msrmt)
+			slog.Info("sensor - got new measurement", "measurement", msrmt)
 			measurement = msrmt
 		case measurementRequest := <-measurementRequestChannel:
 			msg := common.Value{Message: common.Message{Id: sensorId, Timestamp: time.Now()}, Value: measurement}
@@ -122,7 +123,7 @@ func main() {
 
 func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, limit float64, registrationTimeout time.Duration) {
 	for {
-		log.Println("sensor - trying to register sensor")
+		slog.Info("sensor - trying to register sensor")
 
 		registerMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Limit: limit, Timestamp: time.Now()}
 		data, _ := json.Marshal(registerMessage)
@@ -138,7 +139,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string,
 
 		select {
 		case <-result:
-			log.Println("sensor - registered")
+			slog.Info("sensor - registered")
 			registerCancel()
 			return
 		case <-registerContext.Done():
@@ -152,7 +153,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, sensorId string,
 
 func deregister(ctx context.Context, ddaConnector *dda.Connector, sensorId string, parentSensorId string, registrationTimeout time.Duration) {
 	for {
-		log.Println("sensor - trying to deregister sensor")
+		slog.Info("sensor - trying to deregister sensor")
 
 		deregisterMessage := common.RegisterSensorMessage{SensorId: sensorId, ParentSensorId: parentSensorId, Timestamp: time.Now()}
 		data, _ := json.Marshal(deregisterMessage)
@@ -168,7 +169,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, sensorId strin
 
 		select {
 		case <-result:
-			log.Println("sensor - deregistered")
+			slog.Info("sensor - deregistered")
 			deregisterCancel()
 			return
 		case <-deregisterContext.Done():

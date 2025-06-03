@@ -3,7 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -69,7 +69,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 
 				var msg common.RegisterNodeMessage
 				if err := json.Unmarshal(registerNode.Params, &msg); err != nil {
-					log.Printf("Could not unmarshal incoming register message, %s", err)
+					slog.Error("controller - could not unmarshal incoming register message", "error", err)
 					continue
 				}
 
@@ -77,7 +77,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Println("controller - got register node")
+				slog.Info("controller - got register node", "nodeId", msg.NodeId)
 				c.callbackManager.addCallback(msg.NodeId, func(data []byte) {
 					registerNode.Callback(api.ActionResult{Data: data})
 				})
@@ -89,7 +89,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 
 				var msg common.RegisterNodeMessage
 				if err := json.Unmarshal(deregisterNode.Params, &msg); err != nil {
-					log.Printf("Could not unmarshal incoming deregister message, %s", err)
+					slog.Error("controller - could not unmarshal incoming deregister message", "error", err)
 					continue
 				}
 
@@ -97,7 +97,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Println("controller - got deregister node")
+				slog.Info("controller - got deregister node", "nodeId", msg.NodeId)
 
 				c.callbackManager.addCallback(msg.NodeId, func(data []byte) {
 					deregisterNode.Callback(api.ActionResult{Data: data})
@@ -110,7 +110,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 					if stateChange.Op == stateAPI.InputOpSet {
 						var msg node
 						if err := json.Unmarshal(stateChange.Value, &msg); err != nil {
-							log.Printf("Could not unmarshal incoming node state change message, %s", err)
+							slog.Error("controller - could not unmarshal incoming node state change message", "error", err)
 							continue
 						}
 
@@ -134,7 +134,7 @@ func (c *energyCommunityConnector) start(ctx context.Context) error {
 				} else if stateChange.Key == TOPOLOGY_KEY {
 					var topologyEntry topologyLogEntry
 					if err := json.Unmarshal(stateChange.Value, &topologyEntry); err != nil {
-						log.Printf("Could not unmarshal incoming topology message, %s", err)
+						slog.Error("controller - could not unmarshal incoming topology message", "error", err)
 						continue
 					}
 
@@ -178,14 +178,14 @@ func (c *energyCommunityConnector) getData() {
 
 	pvResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_PV_DEMAND_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId})
 	if err != nil {
-		log.Printf("controller - could not get PV response - %s", err)
+		slog.Error("controller - could not get PV response", "error", err)
 		cancel()
 		return
 	}
 
 	chargerResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_CHARGER_DEMAND_ACTION, Id: uuid.NewString(), Source: c.energyCommunityId})
 	if err != nil {
-		log.Printf("controller - could not get charger response - %s", err)
+		slog.Error("controller - could not get charger response", "error", err)
 		cancel()
 		return
 	}
@@ -202,13 +202,13 @@ func (c *energyCommunityConnector) getData() {
 			case pvResponse := <-pvResponses:
 				var value common.Value
 				if err := json.Unmarshal(pvResponse.Data, &value); err != nil {
-					log.Printf("Could not unmarshal incoming PV message, %s", err)
+					slog.Error("controller - could not unmarshal incoming PV message", "error", err)
 					continue
 				}
 
 				if value.Timestamp.After(startTime) {
 					if pv, ok := c.state.toplogy.pvs[value.Id]; ok {
-						log.Println("controller - got pv response", value.Id, value.Value)
+						slog.Info("controller - got pv response", "nodeId", value.Id, "demand", value.Value)
 						pv.demand = value.Value
 					}
 
@@ -222,13 +222,13 @@ func (c *energyCommunityConnector) getData() {
 			case chargerResponse := <-chargerResponses:
 				var value common.Value
 				if err := json.Unmarshal(chargerResponse.Data, &value); err != nil {
-					log.Printf("Could not unmarshal incoming charger message, %s", err)
+					slog.Error("controller - could not unmarshal incoming charger message", "error", err)
 					continue
 				}
 
 				if value.Timestamp.After(startTime) {
 					if charger, ok := c.state.toplogy.chargers[value.Id]; ok {
-						log.Println("controller - got charger response", value.Id, value.Value)
+						slog.Info("controller - got charger response", "nodeId", value.Id, "demand", value.Value)
 						charger.demand = value.Value
 					}
 
@@ -294,7 +294,7 @@ func (c *energyCommunityConnector) sendSetPoints() {
 		msg := common.Value{Message: common.Message{Id: charger.id, Timestamp: time.Now()}, Value: charger.setPoint}
 		data, _ := json.Marshal(msg)
 		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_POINT, charger.id), Source: c.energyCommunityId, Id: uuid.NewString(), Data: data}); err != nil {
-			log.Printf("could not send charging set point - %s", err)
+			slog.Error("controller, could not send charging set point", "error", err)
 		}
 	}
 
@@ -302,7 +302,7 @@ func (c *energyCommunityConnector) sendSetPoints() {
 		msg := common.Value{Message: common.Message{Id: pv.id, Timestamp: time.Now()}, Value: pv.setPoint}
 		data, _ := json.Marshal(msg)
 		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_POINT, pv.id), Source: c.energyCommunityId, Id: uuid.NewString(), Data: data}); err != nil {
-			log.Printf("could not send pv set point - %s", err)
+			slog.Error("controller - could not send pv set point", "error", err)
 		}
 	}
 }

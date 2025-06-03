@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"time"
@@ -18,7 +19,7 @@ import (
 )
 
 func main() {
-	log.Println("starting pv")
+	slog.Info("starting pv")
 
 	var nodeId string
 	var url string
@@ -45,7 +46,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
-		log.Println("shutting down")
+		slog.Info("shutting down")
 
 		cancel()
 
@@ -136,7 +137,7 @@ func main() {
 	setPointMonitorDuration := controllerPeriode + maximumAcceptableSetPointOffset
 	var setPointMonitor common.Timer
 	setPointMonitor.Start(setPointMonitorDuration, func() {
-		log.Println("pv - set point timeout")
+		slog.Warn("pv - set point timeout")
 		mqttConnector.PublishSetPoint(ctx, 0)
 	})
 
@@ -146,7 +147,7 @@ func main() {
 	for {
 		select {
 		case newDemand := <-demandChannel:
-			log.Printf("pv - got new production value: %f", newDemand)
+			slog.Info("pv - got new demand", "demand", newDemand)
 			demand = newDemand
 		case pvDemandRequest := <-pvDemandRequests:
 			msg := common.Value{Message: common.Message{Id: nodeId, Timestamp: time.Now()}, Value: demand}
@@ -155,17 +156,16 @@ func main() {
 		case setPoint := <-setPointChannel:
 			var value common.Value
 			if err := json.Unmarshal(setPoint.Data, &value); err != nil {
-				log.Printf("pv - could not unmarshal incoming set point, %s", err)
+				slog.Info("pv - could not unmarshal incoming set point", "error", err)
 				continue
 			}
 
 			if value.Timestamp.After(time.Now().Add(-maximumAcceptableSetPointOffset)) {
-				log.Printf("pv - got new  set point: %f", value.Value)
+				slog.Info("pv - got new set point", "setPoint", value.Value)
 				setPointMonitor.Reset(setPointMonitorDuration)
 				mqttConnector.PublishSetPoint(ctx, value.Value)
 			} else {
-				log.Println("pv - got too old set point, ignoring it")
-				log.Printf("pv - now: %s, got: %s", time.Now(), value.Timestamp)
+				slog.Warn("pv - got too old set point, ignoring it")
 			}
 		case <-sigChan:
 			return
@@ -175,7 +175,7 @@ func main() {
 
 func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
 	for {
-		log.Println("pv - trying to register node")
+		slog.Info("pv - trying to register node")
 
 		registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
 		data, _ := json.Marshal(registerMessage)
@@ -191,7 +191,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 
 		select {
 		case <-result:
-			log.Println("pv - node registered")
+			slog.Info("pv - node registered")
 			registerCancel()
 			return
 		case <-registerContext.Done():
@@ -205,7 +205,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 
 func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
 	for {
-		log.Println("pv - trying to deregister node")
+		slog.Info("pv - trying to deregister node")
 
 		deregisterMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.PV_NODE_TPYE, Timestamp: time.Now()}
 		data, _ := json.Marshal(deregisterMessage)
@@ -221,7 +221,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string,
 
 		select {
 		case <-result:
-			log.Println("pv - node deregistered")
+			slog.Info("pv - node deregistered")
 			deregisterCancel()
 			return
 		case <-deregisterContext.Done():

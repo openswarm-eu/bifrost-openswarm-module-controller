@@ -1,7 +1,7 @@
 package dda
 
 import (
-	"log"
+	"log/slog"
 	"math/rand"
 	"sync"
 	"time"
@@ -59,12 +59,12 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 
 	f.transitions[leader] = map[event]transition{
 		ownHeartbeatReceived: func() state {
-			log.Println("leader election - leader: ownHeartbeatReceived --> leader")
+			slog.Debug("leader election - leader: ownHeartbeatReceived --> leader")
 			f.heartbeatMonitor.Reset(timeoutBase)
 			return leader
 		},
 		differentHeartbeatReceived: func() state {
-			log.Println("leader election - leader: differentHeartbeatReceived --> follower")
+			slog.Debug("leader election - leader: differentHeartbeatReceived --> follower")
 			f.heartbeatSender.Stop()
 			f.updateLeadership(false)
 			f.timeout = getRandomTimeout(timeoutBase)
@@ -72,7 +72,7 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 			return follower
 		},
 		heartbeatTimeout: func() state {
-			log.Println("leader election - leader: heartbeatTimeout --> follower")
+			slog.Debug("leader election - leader: heartbeatTimeout --> follower")
 			f.heartbeatSender.Stop()
 			f.updateLeadership(false)
 			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
@@ -82,13 +82,13 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 
 	f.transitions[candidate] = map[event]transition{
 		ownHeartbeatReceived: func() state {
-			log.Println("leader election - candidate: ownHeartbeatReceived --> leader")
+			slog.Debug("leader election - candidate: ownHeartbeatReceived --> leader")
 			f.updateLeadership(true)
 			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
 			return leader
 		},
 		differentHeartbeatReceived: func() state {
-			log.Println("leader election - candidate: differentHeartbeatReceived --> follower")
+			slog.Debug("leader election - candidate: differentHeartbeatReceived --> follower")
 			f.heartbeatSender.Stop()
 			f.timeout = getRandomTimeout(timeoutBase)
 			f.heartbeatMonitor.Start(f.timeout, f.heartbeatTimeout)
@@ -98,17 +98,17 @@ func newFsm(id string, api leaderElectionAPI, periode time.Duration, timeoutBase
 
 	f.transitions[follower] = map[event]transition{
 		ownHeartbeatReceived: func() state {
-			log.Println("leader election - follower: ownHeartbeatReceived --> follower")
+			slog.Debug("leader election - follower: ownHeartbeatReceived --> follower")
 			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
 		},
 		differentHeartbeatReceived: func() state {
-			log.Println("leader election - follower: differentHeartbeatReceived --> follower")
+			slog.Debug("leader election - follower: differentHeartbeatReceived --> follower")
 			f.heartbeatMonitor.Reset(f.timeout)
 			return follower
 		},
 		heartbeatTimeout: func() state {
-			log.Println("leader election - follower: heartbeatTimeout --> candidate")
+			slog.Debug("leader election - follower: heartbeatTimeout --> candidate")
 			f.currentTerm = f.highestReceivedTerm + 1
 			f.heartbeatSender.Start(periode, f.sendHeartbeat)
 			return candidate
@@ -137,7 +137,10 @@ func (f *fsm) handleHeartbeat(leaderHeartbeat leaderHeartbeat) {
 			f.applyEvent(differentHeartbeatReceived)
 		}
 	} else {
-		log.Printf("leader election - ignoring heartbeat! Highest reveid term: %d - current leader: %s", f.highestReceivedTerm, f.currentLeader)
+		slog.Info("leader election - ignoring heartbeat!",
+			slog.Any("highest_received_term", f.highestReceivedTerm),
+			slog.String("current_leader", f.currentLeader),
+		)
 	}
 }
 
@@ -178,7 +181,7 @@ func (f *fsm) close() {
 }
 
 func (f *fsm) heartbeatTimeout() {
-	log.Println("leader election - heartbeat timeout")
+	slog.Debug("leader election - heartbeat timeout")
 	f.applyEvent(heartbeatTimeout)
 }
 

@@ -3,7 +3,7 @@ package sct
 import (
 	"context"
 	"io"
-	"log"
+	"log/slog"
 	"math/rand"
 	"slices"
 )
@@ -54,7 +54,7 @@ func (sct *SCT) Start(context context.Context) {
 			case event := <-sct.eventChannel:
 				sct.processEvent(event)
 			case <-context.Done():
-				log.Printf("SCT - shutdown event channel observer")
+				slog.Debug("SCT - shutdown event channel observer")
 				return
 			}
 		}
@@ -68,11 +68,11 @@ func (sct *SCT) AddEvent(event string) {
 func (sct *SCT) processEvent(event string) {
 	ev, ok := sct.eventsLookupTable[event]
 	if !ok {
-		log.Println("SCT - Unknown event:", event)
+		slog.Warn("SCT - Unknown event", "event", event)
 		return
 	}
 
-	log.Println("SCT - Processing event:", event)
+	slog.Debug("SCT - Processing event", "event", event)
 
 	for _, su := range sct.supervisors {
 		su.changeState(ev)
@@ -85,7 +85,7 @@ func (sct *SCT) processEvent(event string) {
 			return
 		}
 
-		log.Println("SCT - Controllable event:", controllableEvent.name)
+		slog.Debug("SCT - Controllable event", "event", controllableEvent.name)
 
 		for _, su := range sct.supervisors {
 			su.changeState(controllableEvent)
@@ -94,7 +94,7 @@ func (sct *SCT) processEvent(event string) {
 		if cb, ok := sct.callbacks[controllableEvent.name]; ok {
 			cb()
 		} else {
-			log.Printf("SCT - Event %s not found in callback map", controllableEvent.name)
+			slog.Warn("SCT - Event not found in callback map", "event", controllableEvent.name)
 		}
 	}
 }

@@ -2,7 +2,6 @@ package dda
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/coatyio/dda/config"
@@ -60,7 +59,6 @@ func (c *Connector) LeaderCh(ctx context.Context) <-chan bool {
 }
 
 func (c *Connector) Close() {
-	log.Println("DdaClient: close")
 	if c.leaderElection != nil {
 		c.leaderElection.Close()
 		// wait for short time to let all threads shutdown/send final messages

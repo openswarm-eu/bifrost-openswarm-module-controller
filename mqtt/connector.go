@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/url"
 
 	"github.com/coatyio/dda/plog"
@@ -32,7 +33,7 @@ func NewConnector(config Config) (*Connector, error) {
 	connector.cliCfg = autopaho.ClientConfig{
 		BrokerUrls:     []*url.URL{u},
 		KeepAlive:      20,
-		OnConnectionUp: func(cm *autopaho.ConnectionManager, connAck *paho.Connack) { log.Println("mqtt connection up") },
+		OnConnectionUp: func(cm *autopaho.ConnectionManager, connAck *paho.Connack) { slog.Info("mqtt - connection up") },
 		OnConnectError: func(err error) { plog.Printf("error whilst attempting connection: %s", err) },
 		ClientConfig: paho.ClientConfig{
 			ClientID:      config.Id,
@@ -40,9 +41,9 @@ func NewConnector(config Config) (*Connector, error) {
 			OnClientError: func(err error) { log.Printf("server requested disconnect: %s", err) },
 			OnServerDisconnect: func(d *paho.Disconnect) {
 				if d.Properties != nil {
-					log.Printf("server requested disconnect: %s", d.Properties.ReasonString)
+					slog.Info("mqtt - server requested disconnect", "reason", d.Properties.ReasonString)
 				} else {
-					log.Printf("server requested disconnect; reason code: %d", d.ReasonCode)
+					slog.Info("mqtt - server requested disconnect", "reason_code", d.ReasonCode)
 				}
 			},
 		},
@@ -96,7 +97,7 @@ func (c *Connector) SubscribeToDemands(ctx context.Context) (<-chan float64, err
 	c.router.RegisterHandler(topic, func(p *paho.Publish) {
 		var msg demandMessage
 		if err := json.Unmarshal(p.Payload, &msg); err != nil {
-			log.Printf("Could not unmarshal incomming demand message, %s", err)
+			slog.Error("mqtt - could not unmarshal incomming demand message", "error", err)
 			return
 		}
 		c.demandChannel <- msg.Demand
@@ -116,7 +117,7 @@ func (c *Connector) SubscribeToSensorMeasurements(ctx context.Context) (<-chan f
 	c.router.RegisterHandler(topic, func(p *paho.Publish) {
 		var msg measurementMessage
 		if err := json.Unmarshal(p.Payload, &msg); err != nil {
-			log.Printf("Could not unmarshal incomming sensor measurement message, %s", err)
+			slog.Error("mqtt - could not unmarshal incomming sensor measurement message", "error", err)
 			return
 		}
 		c.sensorMeasurementChannel <- msg.Measurement

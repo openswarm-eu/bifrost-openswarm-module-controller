@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"time"
@@ -18,7 +19,7 @@ import (
 )
 
 func main() {
-	log.Println("starting charger")
+	slog.Info("starting charger")
 
 	var nodeId string
 	var url string
@@ -45,7 +46,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
-		log.Println("shutting down")
+		slog.Info("shutting down")
 
 		cancel()
 
@@ -136,7 +137,7 @@ func main() {
 	setPointMonitorDuration := controllerPeriode + maximumAcceptableSetPointOffset
 	var setPointMonitor common.Timer
 	setPointMonitor.Start(setPointMonitorDuration, func() {
-		log.Println("charger - set point timeout")
+		slog.Warn("charger - set point timeout")
 		mqttConnector.PublishSetPoint(ctx, 0)
 	})
 
@@ -146,7 +147,7 @@ func main() {
 	for {
 		select {
 		case newDemand := <-demandChannel:
-			log.Printf("pv - got new production value: %f", newDemand)
+			slog.Info("charger - got new demand", "demand", newDemand)
 			demand = newDemand
 		case chargerDemandRequest := <-chargerDemandRequests:
 			msg := common.Value{Message: common.Message{Id: nodeId, Timestamp: time.Now()}, Value: demand}
@@ -155,7 +156,7 @@ func main() {
 		case setPoint := <-setPointChannel:
 			var value common.Value
 			if err := json.Unmarshal(setPoint.Data, &value); err != nil {
-				log.Printf("charger - could not unmarshal incoming set point, %s", err)
+				slog.Error("charger - could not unmarshal incoming set point", "error", err)
 				continue
 			}
 
@@ -164,12 +165,11 @@ func main() {
 			}
 
 			if value.Timestamp.After(time.Now().Add(-maximumAcceptableSetPointOffset)) {
-				log.Printf("charger - got new set point: %f", value.Value)
+				slog.Info("charger - got new set point", "setPoint", value.Value)
 				setPointMonitor.Reset(setPointMonitorDuration)
 				mqttConnector.PublishSetPoint(ctx, value.Value)
 			} else {
-				log.Println("charger - got too old set point, ignoring it")
-				log.Printf("charger - now: %s, got: %s", time.Now(), value.Timestamp)
+				slog.Warn("charger - got too old set point, ignoring it")
 			}
 		case <-sigChan:
 			return
@@ -179,7 +179,7 @@ func main() {
 
 func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
 	for {
-		log.Println("charger - trying to register node")
+		slog.Info("charger - trying to register node")
 
 		registerMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.CHARGER_NODE_TYPE, Timestamp: time.Now()}
 		data, _ := json.Marshal(registerMessage)
@@ -195,7 +195,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 
 		select {
 		case <-result:
-			log.Println("charger - node registered")
+			slog.Info("charger - node registered")
 			registerCancel()
 			return
 		case <-registerContext.Done():
@@ -209,7 +209,7 @@ func register(ctx context.Context, ddaConnector *dda.Connector, nodeId string, s
 
 func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string, sensorId string, registrationTimeout time.Duration) {
 	for {
-		log.Println("charger - trying to deregister node")
+		slog.Info("charger - trying to deregister node")
 
 		deregisterMessage := common.RegisterNodeMessage{NodeId: nodeId, SensorId: sensorId, NodeType: common.CHARGER_NODE_TYPE, Timestamp: time.Now()}
 		data, _ := json.Marshal(deregisterMessage)
@@ -225,7 +225,7 @@ func deregister(ctx context.Context, ddaConnector *dda.Connector, nodeId string,
 
 		select {
 		case <-result:
-			log.Println("charger - node deregistered")
+			slog.Info("charger - node deregistered")
 			deregisterCancel()
 			return
 		case <-deregisterContext.Done():

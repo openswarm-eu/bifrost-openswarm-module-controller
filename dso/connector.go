@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -79,7 +80,7 @@ func (c *connector) start(ctx context.Context) error {
 
 				var msg common.RegisterSensorMessage
 				if err := json.Unmarshal(registerSensor.Params, &msg); err != nil {
-					log.Printf("Could not unmarshal incoming register sensor message, %s", err)
+					slog.Error("dso - could not unmarshal incoming register sensor message", "error", err)
 					continue
 				}
 
@@ -87,7 +88,7 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Printf("dso - got register sensor %s", msg.SensorId)
+				slog.Info("dso - got register sensor", "sensorId", msg.SensorId)
 
 				c.registerCallbacks[msg.SensorId] = registerSensor.Callback
 				c.writeSensorToLog(msg)
@@ -98,7 +99,7 @@ func (c *connector) start(ctx context.Context) error {
 
 				var msg common.RegisterSensorMessage
 				if err := json.Unmarshal(deregisterSensor.Params, &msg); err != nil {
-					log.Printf("Could not unmarshal incoming deregister sensor message, %s", err)
+					slog.Error("dso - could not unmarshal incoming deregister sensor message", "error", err)
 					continue
 				}
 
@@ -106,7 +107,7 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Printf("dso - got deregister sensor %s", msg.SensorId)
+				slog.Info("dso - got deregister sensor", "sensorId", msg.SensorId)
 
 				c.deregisterCallbacks[msg.SensorId] = deregisterSensor.Callback
 				c.removeSensorFromLog(msg)
@@ -117,7 +118,7 @@ func (c *connector) start(ctx context.Context) error {
 
 				var msg common.RegisterEnergyCommunityMessage
 				if err := json.Unmarshal(registerEnergyCommunity.Params, &msg); err != nil {
-					log.Printf("Could not unmarshal incoming register energy community message, %s", err)
+					slog.Error("dso - could not unmarshal incoming register energy community message", "error", err)
 					continue
 				}
 
@@ -125,7 +126,7 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Printf("dso - got register energy community %s", msg.EnergyCommunityId)
+				slog.Info("dso - got register energy community", "energyCommunityId", msg.EnergyCommunityId)
 
 				c.registerEnergyCommunityCallbacks[msg.EnergyCommunityId] = registerEnergyCommunity.Callback
 				c.writeEnergyCommunityToLog(msg.EnergyCommunityId, 0)
@@ -144,7 +145,7 @@ func (c *connector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Printf("dso - got deregister energy community %s", msg.EnergyCommunityId)
+				slog.Info("dso - got deregister energy community", "energyCommunityId", msg.EnergyCommunityId)
 
 				c.deregisterEnergyCommunityCallbacks[msg.EnergyCommunityId] = derigsterEnergyCommunity.Callback
 				c.removeEnergyCommunityFromLog(msg.EnergyCommunityId)
@@ -156,7 +157,7 @@ func (c *connector) start(ctx context.Context) error {
 					if stateChange.Op == stateAPI.InputOpSet {
 						var sensorLogEntry sensorLogEntry
 						if err := json.Unmarshal(stateChange.Value, &sensorLogEntry); err != nil {
-							log.Printf("Could not unmarshal incoming sensor log entry message, %s", err)
+							slog.Error("dso - could not unmarshal incoming sensor log entry message", "error", err)
 							continue
 						}
 
@@ -194,7 +195,7 @@ func (c *connector) start(ctx context.Context) error {
 					if stateChange.Op == stateAPI.InputOpSet {
 						var energyCommunityLogEntry energyCommunityLogEntry
 						if err := json.Unmarshal(stateChange.Value, &energyCommunityLogEntry); err != nil {
-							log.Printf("Could not unmarshal incoming energy community log entry message, %s", err)
+							slog.Error("dso - could not unmarshal incoming energy community log entry message", "error", err)
 							continue
 						}
 
@@ -290,7 +291,7 @@ func (c *connector) getFlowProposals() {
 		}
 		go func(energyCommunityId string) {
 			if result, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.AppendId(common.GET_FLOW_PROPOSAL_ACTION, energyCommunityId), Id: uuid.NewString(), Source: "dso"}); err != nil {
-				log.Printf("dso - could not send get flow proposal action - %s", err)
+				slog.Error("dso - could not send get flow proposal action", "error", err)
 			} else {
 				msg := <-result
 				if len(msg.Data) == 0 {
@@ -299,7 +300,7 @@ func (c *connector) getFlowProposals() {
 
 				var flowProposal common.FlowProposalsMessage
 				if err := json.Unmarshal(msg.Data, &flowProposal); err != nil {
-					log.Printf("could not unmarshal flow proposal - %s", err)
+					slog.Error("dso - could not unmarshal flow proposal", "error", err)
 				} else {
 					if flowProposal.Timestamp.After(startTime) {
 						flowProposals <- flowProposal
@@ -318,7 +319,7 @@ func (c *connector) getFlowProposals() {
 		case energyCommunityProposal := <-flowProposals:
 			for sensorId, flowProposal := range energyCommunityProposal.Proposals {
 				if sensor, ok := c.state.localSenorInformations[sensorId]; ok {
-					log.Printf("dso - received flow proposal for %s from %s: %+v", sensorId, energyCommunityProposal.EnergyCommunityId, flowProposal)
+					slog.Info("dso - received flow proposal", "sensorId", sensorId, "energyCommunityId", energyCommunityProposal.EnergyCommunityId, "flowProposal", flowProposal)
 					sensor.ecFlowProposal[energyCommunityProposal.EnergyCommunityId] = flowProposal
 				}
 			}
@@ -341,7 +342,7 @@ func (c *connector) getSensorMeasurements() {
 
 	sensorResponses, err := c.ddaConnector.PublishAction(ctx, api.Action{Type: common.GET_SENSOR_MEASUREMENT_ACTION, Id: uuid.NewString(), Source: "dso"})
 	if err != nil {
-		log.Printf("dso - could not get sensor response - %s", err)
+		slog.Error("dso - could not get sensor response", "error", err)
 		cancel()
 		return
 	}
@@ -357,13 +358,13 @@ func (c *connector) getSensorMeasurements() {
 		case sensorResponse := <-sensorResponses:
 			var value common.Value
 			if err := json.Unmarshal(sensorResponse.Data, &value); err != nil {
-				log.Printf("Could not unmarshal incoming sensor message, %s", err)
+				slog.Error("dso - could not unmarshal incoming sensor message", "error", err)
 				continue
 			}
 
 			if value.Timestamp.After(startTime) {
 				if sensor, ok := c.state.localSenorInformations[value.Id]; ok {
-					log.Println("dso - got sensor measurement", value.Id, value.Value)
+					slog.Info("dso - got sensor measurement", "sensorId", value.Id, "measurement", value.Value)
 					sensor.measurement = value.Value
 				}
 
@@ -380,12 +381,12 @@ func (c *connector) getSensorMeasurements() {
 
 func (c *connector) sendSensorLimits() {
 	for energyCommunityId, sensorLimitsMessage := range c.state.energyCommunitySensorLimits {
-		log.Println("dso - sending sensor limits for energy community", energyCommunityId, sensorLimitsMessage)
+		slog.Info("dso - sending sensor limits for energy community", "energyCommunityId", energyCommunityId, "sensorLimits", sensorLimitsMessage)
 		sensorLimitsMessage.Timestamp = time.Now()
 		data, _ := json.Marshal(sensorLimitsMessage)
 
 		if err := c.ddaConnector.PublishEvent(api.Event{Type: common.AppendId(common.SET_SENSOR_LIMITS_EVENT, energyCommunityId), Id: uuid.NewString(), Source: "dso", Data: data}); err != nil {
-			log.Printf("dso - could not send sensor limits event - %s", err)
+			slog.Error("dso - could not send sensor limits event", "error", err)
 		}
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 
 	"code.siemens.com/energy-community-controller/common"
@@ -80,19 +80,19 @@ func (l *logic) start(ctx context.Context) error {
 			select {
 			case v := <-leaderCh:
 				if v {
-					log.Println("dso - I'm leader, starting logic")
+					slog.Info("dso - I'm leader, starting logic")
 					l.state.leader = true
 					l.energyCommunityTopologyUpdater.sendUpdatesToEnergyCommunities()
 					ticker.Start(l.config.Periode, l.newRound)
 				} else {
-					log.Println("dso - lost leadership, stop logic")
+					slog.Info("dso - lost leadership, stop logic")
 					l.state.leader = false
 					ticker.Stop()
 				}
 			case event := <-eventChannel:
 				l.sct.AddEvent(event)
 			case <-ctx.Done():
-				log.Printf("dso - shutdown leader channel observer")
+				slog.Debug("dso - shutdown leader channel observer")
 				ticker.Stop()
 				return
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"time"
 
 	"code.siemens.com/energy-community-controller/common"
@@ -61,7 +62,7 @@ func (c *dsoConnector) start(ctx context.Context) error {
 				var topologyMessage common.TopologyMessage
 				err := json.Unmarshal([]byte(topologyUpdate.Params), &topologyMessage)
 				if err != nil {
-					log.Println("controller - error unmarshalling topology update message:", err)
+					slog.Error("controller - error unmarshalling topology update message", "error", err)
 					continue
 				}
 
@@ -69,7 +70,7 @@ func (c *dsoConnector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Printf("controller - received topology update message %s", topologyMessage.Topology)
+				slog.Info("controller - received topology update message", "topology", topologyMessage.Topology)
 
 				c.energyCommunityConnector.writeTopologyToLog(topologyMessage, func(data []byte) {
 					topologyUpdate.Callback(api.ActionResult{Data: data})
@@ -89,7 +90,7 @@ func (c *dsoConnector) start(ctx context.Context) error {
 				var sensorLimitsMessage common.EnergyCommunitySensorLimitMessage
 				err := json.Unmarshal([]byte(sensorLimit.Data), &sensorLimitsMessage)
 				if err != nil {
-					log.Println("controller - error unmarshalling sensor limits message:", err)
+					slog.Error("controller - error unmarshalling sensor limits message", "error", err)
 					continue
 				}
 
@@ -97,7 +98,7 @@ func (c *dsoConnector) start(ctx context.Context) error {
 					continue
 				}
 
-				log.Printf("controller - received sensor limits message %v", sensorLimitsMessage.SensorLimits)
+				slog.Info("controller - received sensor limits message", "sensorLimits", sensorLimitsMessage.SensorLimits)
 
 				c.state.toplogy.setAllSensorLimits(0)
 				for sensorId, limit := range sensorLimitsMessage.SensorLimits {
@@ -114,7 +115,7 @@ func (c *dsoConnector) start(ctx context.Context) error {
 func (c *dsoConnector) stop() {
 	if c.state.registeredAtDso && c.state.clusterMembers == 1 {
 		for {
-			log.Println("controller - trying to unregister energy community at DSO")
+			slog.Info("controller - trying to unregister energy community at DSO")
 
 			deregisterMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
 			data, _ := json.Marshal(deregisterMessage)
@@ -130,7 +131,7 @@ func (c *dsoConnector) stop() {
 
 			select {
 			case <-result:
-				log.Println("controller - energy community deregistered")
+				slog.Info("controller - energy community deregistered")
 				deregisterCancel()
 				return
 			case <-deregisterContext.Done():
@@ -146,7 +147,7 @@ func (c *dsoConnector) stop() {
 func (c *dsoConnector) registerAtDso(ctx context.Context) {
 	go func() {
 		for {
-			log.Println("controller - trying to register energy community at DSO")
+			slog.Info("controller - trying to register energy community at DSO")
 
 			registerMessage := common.RegisterEnergyCommunityMessage{EnergyCommunityId: c.energyCommunityId, Timestamp: time.Now()}
 			data, _ := json.Marshal(registerMessage)
@@ -162,7 +163,7 @@ func (c *dsoConnector) registerAtDso(ctx context.Context) {
 
 			select {
 			case <-result:
-				log.Println("controller - energy community registered")
+				slog.Info("controller - energy community registered")
 				registerCancel()
 				c.energyCommunityConnector.writeSuccessfullDsoRegistrationToLog()
 				return

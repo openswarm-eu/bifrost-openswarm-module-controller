@@ -3,7 +3,7 @@ package dso
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"code.siemens.com/energy-community-controller/common"
@@ -80,10 +80,10 @@ func (tu *energyCommunityTopologyUpdater) sendUpdatesToEnergyCommunities() {
 }
 
 func (tu *energyCommunityTopologyUpdater) sendUpdateToEnergyCommunity(energyCommunityId string, data []byte, ctx context.Context, sucessChannel chan struct{}) {
-	log.Printf("dso - sending topology update to: %s", energyCommunityId)
+	slog.Info("dso - sending topology update", "energyCommunityId", energyCommunityId)
 	result, err := tu.ddaConnector.PublishAction(ctx, api.Action{Type: common.AppendId(common.TOPOLOGY_UPDATE_ACTION, energyCommunityId), Id: uuid.NewString(), Source: "dso", Params: data})
 	if err != nil {
-		log.Printf("Could not send topology update to %s - %s", energyCommunityId, err)
+		slog.Error("dso - could not send topology update", "error", err)
 	}
 
 	response := <-result
@@ -91,7 +91,7 @@ func (tu *energyCommunityTopologyUpdater) sendUpdateToEnergyCommunity(energyComm
 		return
 	}
 
-	log.Printf("dso - %s: accepted new topo", energyCommunityId)
+	slog.Info("dso - new topo accepted", "energyCommunityId", energyCommunityId)
 	tu.state.energyCommunities[energyCommunityId] = tu.state.topology.Version
 	tu.writeEnergyCommunityToLogCallback(energyCommunityId, tu.state.topology.Version)
 	sucessChannel <- struct{}{}

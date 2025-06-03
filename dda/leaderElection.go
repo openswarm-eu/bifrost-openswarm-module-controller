@@ -3,7 +3,7 @@ package dda
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/coatyio/dda/services/state/api"
@@ -79,11 +79,11 @@ func (le *LeaderElection) handleStateUpdate(change api.Input) {
 		return
 	}
 
-	log.Printf("leader election - received heartbeat %s", change.Value)
+	slog.Debug("leader election - received heartbeat", "heartbeat", change.Value)
 
 	var leaderHeartbeat leaderHeartbeat
 	if err := json.Unmarshal(change.Value, &leaderHeartbeat); err != nil {
-		log.Printf("leader election - error unmarshalling leader heartbeat: %s", err)
+		slog.Error("leader election - error unmarshalling leader heartbeat", "error", err)
 		return
 	}
 
@@ -91,7 +91,7 @@ func (le *LeaderElection) handleStateUpdate(change api.Input) {
 }
 
 func (le *LeaderElection) sendHeartbeat(id string, term uint64) {
-	log.Println("leader election - sending heartbeat")
+	slog.Debug("leader election - sending heartbeat")
 
 	leaderHeartbeat := leaderHeartbeat{
 		Term:     term,
@@ -107,6 +107,6 @@ func (le *LeaderElection) sendHeartbeat(id string, term uint64) {
 	}
 
 	if err := le.ddaConnector.ProposeInput(le.ctx, &input); err != nil {
-		log.Printf("leader election - Could not send heartbeat: %s", err)
+		slog.Error("leader election - Could not send heartbeat", "error", err)
 	}
 }

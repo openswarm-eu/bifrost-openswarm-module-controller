@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math"
 	"os"
 
@@ -79,21 +79,21 @@ func (l *logic) start(ctx context.Context) error {
 			select {
 			case v := <-leaderCh:
 				if v {
-					log.Println("controller - I'm leader, starting logic")
+					slog.Info("controller - I'm leader, starting logic")
 					l.state.leader = true
 					if !l.state.registeredAtDso {
 						l.dsoConnector.registerAtDso(ctx)
 					}
 					///ticker.Start(l.config.Periode, l.newRound)
 				} else {
-					log.Println("controller - lost leadership, stop logic")
+					slog.Info("controller - lost leadership, stop logic")
 					l.state.leader = false
 					//ticker.Stop()
 				}
 			case event := <-eventChannel:
 				l.sct.AddEvent(event)
 			case <-ctx.Done():
-				log.Printf("controller - shutdown leader channel observer")
+				slog.Debug("controller - shutdown leader channel observer")
 				//ticker.Stop()
 				return
 			}
