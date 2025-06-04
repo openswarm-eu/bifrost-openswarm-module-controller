@@ -105,7 +105,6 @@ func (l *logic) start(ctx context.Context) error {
 
 func (l *logic) newRound() {
 	l.state.mutex.Lock()
-	defer l.state.mutex.Unlock()
 
 	if l.state.topology.Version != l.state.newTopology.Version {
 		l.state.copyNewTopology()
@@ -117,6 +116,8 @@ func (l *logic) newRound() {
 		l.state.copyNewEnergyCommunities()
 		l.state.energyCommunityUpdate = false
 	}
+
+	l.state.mutex.Unlock()
 
 	l.energyCommunityTopologyUpdater.sendUpdatesToEnergyCommunities()
 
