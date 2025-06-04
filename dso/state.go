@@ -34,14 +34,20 @@ type localSenorInformation struct {
 }
 
 func (s *state) updateLocalSensorInformation() {
-	s.localSenorInformations = make(map[string]*localSenorInformation)
-
 	for sensorId := range s.topology.Sensors {
 		if _, ok := s.localSenorInformations[sensorId]; !ok {
 			s.localSenorInformations[sensorId] = &localSenorInformation{
 				measurement:    0,
 				ecFlowProposal: make(map[string]common.FlowProposal),
 			}
+		}
+	}
+}
+
+func (s *state) resetEnergyCommunitySensorLimits() {
+	for sensorId := range s.topology.Sensors {
+		if sensor, ok := s.localSenorInformations[sensorId]; !ok {
+			sensor.sumECLimits = 0
 		}
 	}
 }

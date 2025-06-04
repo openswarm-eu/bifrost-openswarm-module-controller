@@ -162,6 +162,11 @@ func (c *connector) start(ctx context.Context) error {
 						}
 
 						c.state.addNodeToTopology(sensorId, sensorLogEntry.ParentSensorId, sensorLogEntry.Limit)
+						c.state.localSenorInformations[sensorId] = &localSenorInformation{
+							measurement:    0,
+							ecFlowProposal: make(map[string]common.FlowProposal),
+							sumECLimits:    0,
+						}
 
 						if !c.state.leader {
 							continue
@@ -178,6 +183,7 @@ func (c *connector) start(ctx context.Context) error {
 
 					for sensorId, callback := range c.deregisterCallbacks {
 						c.state.removeNodeFromTopology(sensorId)
+						delete(c.state.localSenorInformations, sensorId)
 
 						if !c.state.leader {
 							continue

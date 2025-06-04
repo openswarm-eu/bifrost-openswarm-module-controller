@@ -82,6 +82,7 @@ func (l *logic) start(ctx context.Context) error {
 				if v {
 					slog.Info("dso - I'm leader, starting logic")
 					l.state.leader = true
+					l.state.resetEnergyCommunitySensorLimits()
 					l.energyCommunityTopologyUpdater.sendUpdatesToEnergyCommunities()
 					ticker.Start(l.config.Periode, l.newRound)
 				} else {
