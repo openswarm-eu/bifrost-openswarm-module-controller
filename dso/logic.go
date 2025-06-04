@@ -104,8 +104,20 @@ func (l *logic) start(ctx context.Context) error {
 }
 
 func (l *logic) newRound() {
-	l.state.topology = l.state.newTopology
-	l.state.updateLocalSensorInformation()
+	l.state.mutex.Lock()
+	defer l.state.mutex.Unlock()
+
+	if l.state.topology.Version != l.state.newTopology.Version {
+		l.state.copyNewTopology()
+	} else {
+		l.state.resetSensorInformation()
+	}
+
+	if l.state.energyCommunityUpdate {
+		l.state.copyNewEnergyCommunities()
+		l.state.energyCommunityUpdate = false
+	}
+
 	l.energyCommunityTopologyUpdater.sendUpdatesToEnergyCommunities()
 
 	addEvent("newRound")

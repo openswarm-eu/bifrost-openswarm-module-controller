@@ -162,11 +162,6 @@ func (c *connector) start(ctx context.Context) error {
 						}
 
 						c.state.addNodeToTopology(sensorId, sensorLogEntry.ParentSensorId, sensorLogEntry.Limit)
-						c.state.localSenorInformations[sensorId] = &localSenorInformation{
-							measurement:    0,
-							ecFlowProposal: make(map[string]common.FlowProposal),
-							sumECLimits:    0,
-						}
 
 						if !c.state.leader {
 							continue
@@ -183,7 +178,6 @@ func (c *connector) start(ctx context.Context) error {
 
 					for sensorId, callback := range c.deregisterCallbacks {
 						c.state.removeNodeFromTopology(sensorId)
-						delete(c.state.localSenorInformations, sensorId)
 
 						if !c.state.leader {
 							continue
@@ -197,6 +191,7 @@ func (c *connector) start(ctx context.Context) error {
 					}
 				} else if strings.HasPrefix(stateChange.Key, energy_community_prefix) {
 					energyCommunityId := strings.TrimPrefix(stateChange.Key, energy_community_prefix)
+					c.state.energyCommunityUpdate = true
 
 					if stateChange.Op == stateAPI.InputOpSet {
 						var energyCommunityLogEntry energyCommunityLogEntry
@@ -205,7 +200,7 @@ func (c *connector) start(ctx context.Context) error {
 							continue
 						}
 
-						c.state.energyCommunities[energyCommunityId] = energyCommunityLogEntry.Version
+						c.state.addEnergyCommunity(energyCommunityId, energyCommunityLogEntry.Version)
 
 						if !c.state.leader {
 							continue
@@ -216,7 +211,7 @@ func (c *connector) start(ctx context.Context) error {
 							delete(c.registerEnergyCommunityCallbacks, energyCommunityId)
 						}
 					} else {
-						delete(c.state.energyCommunities, energyCommunityId)
+						c.state.removeEnergyCommunity(energyCommunityId)
 
 						if callback, ok := c.deregisterEnergyCommunityCallbacks[energyCommunityId]; ok {
 							callback(api.ActionResult{Data: []byte(energyCommunityId)})
@@ -324,7 +319,7 @@ func (c *connector) getFlowProposals() {
 			return
 		case energyCommunityProposal := <-flowProposals:
 			for sensorId, flowProposal := range energyCommunityProposal.Proposals {
-				if sensor, ok := c.state.localSenorInformations[sensorId]; ok {
+				if sensor, ok := c.state.topology.Sensors[sensorId]; ok {
 					slog.Info("dso - received flow proposal", "sensorId", sensorId, "energyCommunityId", energyCommunityProposal.EnergyCommunityId, "flowProposal", flowProposal)
 					sensor.ecFlowProposal[energyCommunityProposal.EnergyCommunityId] = flowProposal
 				}
@@ -340,7 +335,7 @@ func (c *connector) getFlowProposals() {
 }
 
 func (c *connector) getSensorMeasurements() {
-	numOutstandingSensorResponses := len(c.state.localSenorInformations)
+	numOutstandingSensorResponses := len(c.state.topology.Sensors)
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
@@ -369,7 +364,7 @@ func (c *connector) getSensorMeasurements() {
 			}
 
 			if value.Timestamp.After(startTime) {
-				if sensor, ok := c.state.localSenorInformations[value.Id]; ok {
+				if sensor, ok := c.state.topology.Sensors[value.Id]; ok {
 					slog.Info("dso - got sensor measurement", "sensorId", value.Id, "measurement", value.Value)
 					sensor.measurement = value.Value
 				}

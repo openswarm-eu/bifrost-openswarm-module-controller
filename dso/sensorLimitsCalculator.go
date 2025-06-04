@@ -21,27 +21,27 @@ func (l sensorLimitsCalculator) calculateSensorLimits() {
 
 	for energyCommunityId := range l.state.energyCommunities {
 		l.state.energyCommunitySensorLimits[energyCommunityId] = common.EnergyCommunitySensorLimitMessage{SensorLimits: make(map[string]float64)}
-		for sensorId := range l.state.localSenorInformations {
+		for sensorId := range l.state.topology.Sensors {
 			l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId] = 0.0
 		}
 	}
 
-	for sensorId, localSensorInformation := range l.state.localSenorInformations {
+	for sensorId, sensor := range l.state.topology.Sensors {
 		sumFlowProposals := 0.0
 
-		for _, flowProposal := range localSensorInformation.ecFlowProposal {
+		for _, flowProposal := range sensor.ecFlowProposal {
 			sumFlowProposals += flowProposal.Flow
 		}
 
-		sensorLimit := l.state.topology.Sensors[sensorId].Limit
-		availableDemand := sensorLimit - (math.Abs(localSensorInformation.measurement) - math.Abs(localSensorInformation.sumECLimits))
+		sensorLimit := l.state.topology.Sensors[sensorId].limit
+		availableDemand := sensorLimit - (math.Abs(sensor.measurement) - math.Abs(sensor.sumECLimits))
 		if availableDemand >= math.Abs(sumFlowProposals) {
-			for energyCommunityId, flowProposal := range localSensorInformation.ecFlowProposal {
+			for energyCommunityId, flowProposal := range sensor.ecFlowProposal {
 				l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId] = math.Abs(flowProposal.Flow)
 			}
 		} else {
 			numComponents := 0
-			for _, flowProposal := range localSensorInformation.ecFlowProposal {
+			for _, flowProposal := range sensor.ecFlowProposal {
 				if (sumFlowProposals > 0 && flowProposal.Flow > 0) || (sumFlowProposals < 0 && flowProposal.Flow < 0) {
 					numComponents += flowProposal.NumberOfNodes
 				} else {
@@ -51,7 +51,7 @@ func (l sensorLimitsCalculator) calculateSensorLimits() {
 
 			for availableDemand > 0 {
 				ecLimit := availableDemand / float64(numComponents)
-				for energyCommunityId, flowProposal := range localSensorInformation.ecFlowProposal {
+				for energyCommunityId, flowProposal := range sensor.ecFlowProposal {
 					if (sumFlowProposals > 0 && flowProposal.Flow > 0) || (sumFlowProposals < 0 && flowProposal.Flow < 0) {
 						openDemand := math.Abs(flowProposal.Flow) - l.state.energyCommunitySensorLimits[energyCommunityId].SensorLimits[sensorId]*float64(flowProposal.NumberOfNodes)
 
@@ -76,16 +76,16 @@ func (l sensorLimitsCalculator) calculateSensorLimits() {
 		}
 	}
 
-	for _, localSensorInformation := range l.state.localSenorInformations {
-		localSensorInformation.sumECLimits = 0.0
+	for _, sensor := range l.state.topology.Sensors {
+		sensor.sumECLimits = 0.0
 	}
 
 	for energyCommunityId, flowSetPointMessage := range l.state.energyCommunitySensorLimits {
 		for sensorId, limit := range flowSetPointMessage.SensorLimits {
-			if l.state.localSenorInformations[sensorId].ecFlowProposal[energyCommunityId].Flow < 0 {
-				l.state.localSenorInformations[sensorId].sumECLimits -= limit
+			if l.state.topology.Sensors[sensorId].ecFlowProposal[energyCommunityId].Flow < 0 {
+				l.state.topology.Sensors[sensorId].sumECLimits -= limit
 			} else {
-				l.state.localSenorInformations[sensorId].sumECLimits += limit
+				l.state.topology.Sensors[sensorId].sumECLimits += limit
 			}
 		}
 	}

@@ -1,19 +1,21 @@
 package dso
 
 import (
+	"sync"
+
 	"code.siemens.com/energy-community-controller/common"
 )
 
 type state struct {
-	// exchanged via raft
-	energyCommunities map[string]int
-	topology          topology
-
-	// local only
 	leader                      bool
+	energyCommunities           map[string]int
+	newEnergyCommunities        map[string]int
+	topology                    topology
 	newTopology                 topology
-	localSenorInformations      map[string]*localSenorInformation                   // sensorId -> localSenorInformation
+	energyCommunityUpdate       bool
 	energyCommunitySensorLimits map[string]common.EnergyCommunitySensorLimitMessage // energyCommunityId -> FlowSetPointsMessage
+
+	mutex sync.Mutex
 }
 
 type topology struct {
@@ -22,58 +24,78 @@ type topology struct {
 }
 
 type sensor struct {
-	Limit            float64
-	ChildrenSensorId []string
+	limit            float64
+	childrenSensorId []string
+	measurement      float64
+	sumECLimits      float64
+	ecFlowProposal   map[string]common.FlowProposal
 	parentSensorId   string // parentSensorId is used to remove the sensor from the topology
 }
 
-type localSenorInformation struct {
-	measurement    float64
-	sumECLimits    float64
-	ecFlowProposal map[string]common.FlowProposal // energyCommunityId --> FlowProposal
-}
-
-func (s *state) updateLocalSensorInformation() {
-	for sensorId := range s.topology.Sensors {
-		if _, ok := s.localSenorInformations[sensorId]; !ok {
-			s.localSenorInformations[sensorId] = &localSenorInformation{
-				measurement:    0,
-				ecFlowProposal: make(map[string]common.FlowProposal),
-			}
-		}
+func (s *state) resetSensorInformation() {
+	for _, sensor := range s.topology.Sensors {
+		sensor.measurement = 0
+		sensor.ecFlowProposal = make(map[string]common.FlowProposal)
 	}
 }
 
 func (s *state) resetEnergyCommunitySensorLimits() {
-	for sensorId := range s.topology.Sensors {
-		if sensor, ok := s.localSenorInformations[sensorId]; !ok {
-			sensor.sumECLimits = 0
+	for _, sensor := range s.topology.Sensors {
+		sensor.sumECLimits = 0
+	}
+}
+
+func (s *state) copyNewTopology() {
+	s.topology.Version = s.newTopology.Version
+
+	s.topology.Sensors = make(map[string]*sensor)
+	for sensorId, snsr := range s.newTopology.Sensors {
+		s.topology.Sensors[sensorId] = &sensor{
+			limit:            snsr.limit,
+			childrenSensorId: make([]string, len(snsr.childrenSensorId)),
+			parentSensorId:   snsr.parentSensorId,
+			measurement:      0,
+			ecFlowProposal:   make(map[string]common.FlowProposal),
+			sumECLimits:      0,
 		}
+		copy(s.topology.Sensors[sensorId].childrenSensorId, snsr.childrenSensorId)
+	}
+}
+
+func (s *state) copyNewEnergyCommunities() {
+	s.energyCommunities = make(map[string]int)
+	for energyCommunityId, version := range s.newEnergyCommunities {
+		s.energyCommunities[energyCommunityId] = version
 	}
 }
 
 func (s *state) addNodeToTopology(sensorId string, parentSensorId string, limit float64) {
-	if _, ok := s.newTopology.Sensors[sensorId]; !ok {
-		s.newTopology.Sensors[sensorId] = &sensor{ChildrenSensorId: make([]string, 0), parentSensorId: parentSensorId}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if _, ok := s.newTopology.Sensors[sensorId]; ok {
+		return
 	}
 
-	snsr := s.newTopology.Sensors[sensorId]
-	snsr.Limit = limit
+	s.newTopology.Sensors[sensorId] = &sensor{childrenSensorId: make([]string, 0), parentSensorId: parentSensorId, ecFlowProposal: make(map[string]common.FlowProposal), limit: limit}
 
 	if parentSensorId == "" {
 		return
 	}
 
 	if _, ok := s.newTopology.Sensors[parentSensorId]; !ok {
-		s.newTopology.Sensors[parentSensorId] = &sensor{ChildrenSensorId: make([]string, 0)}
+		s.newTopology.Sensors[parentSensorId] = &sensor{childrenSensorId: make([]string, 0)}
 	}
 
-	parentSensor := s.newTopology.Sensors[parentSensorId]
-	parentSensor.ChildrenSensorId = append(parentSensor.ChildrenSensorId, sensorId)
+	parentSensor := s.newTopology.Sensors[parentSensorId] //todo: can this fail??
+	parentSensor.childrenSensorId = append(parentSensor.childrenSensorId, sensorId)
 	s.newTopology.Sensors[parentSensorId] = parentSensor
 }
 
 func (s *state) removeNodeFromTopology(sensorId string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	if _, ok := s.newTopology.Sensors[sensorId]; !ok {
 		return
 	}
@@ -90,11 +112,25 @@ func (s *state) removeNodeFromTopology(sensorId string) {
 	}
 
 	parentSensor := s.newTopology.Sensors[parentSensorId]
-	childrenSensorId := parentSensor.ChildrenSensorId
+	childrenSensorId := parentSensor.childrenSensorId
 	for i, childId := range childrenSensorId {
 		if childId == sensorId {
-			parentSensor.ChildrenSensorId = append(childrenSensorId[:i], childrenSensorId[i+1:]...)
+			parentSensor.childrenSensorId = append(childrenSensorId[:i], childrenSensorId[i+1:]...)
 			break
 		}
 	}
+}
+
+func (s *state) addEnergyCommunity(energyCommunityId string, version int) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.newEnergyCommunities[energyCommunityId] = version
+}
+
+func (s *state) removeEnergyCommunity(energyCommunityId string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	delete(s.newEnergyCommunities, energyCommunityId)
 }
