@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 
+	"code.siemens.com/energy-community-controller/common"
 	"code.siemens.com/energy-community-controller/sct"
 )
 
@@ -23,6 +24,8 @@ type logic struct {
 	dsoConnector             *dsoConnector
 	state                    *state
 	sct                      *sct.SCT
+
+	timeoutTimer common.Timer
 }
 
 func newLogic(config Config, energyCommunityConnector *energyCommunityConnector, dsoConnector *dsoConnector, state *state) (*logic, error) {
@@ -49,7 +52,13 @@ func newLogic(config Config, energyCommunityConnector *energyCommunityConnector,
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
-	defer s2.Close()
+	defer s3.Close()
+
+	s4, err := os.Open("resources/controller4.xml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %v", err)
+	}
+	defer s4.Close()
 
 	callbacks := make(map[string]func())
 	callbacks["getData"] = energyCommunityConnector.getData
@@ -57,7 +66,8 @@ func newLogic(config Config, energyCommunityConnector *energyCommunityConnector,
 	callbacks["calculateSetPointsWithLimits"] = l.calculateSetPointsWithLimits
 	callbacks["sendFlowProposal"] = dsoConnector.sendFlowProposal
 	callbacks["sendSetPoints"] = energyCommunityConnector.sendSetPoints
-	if sct, err := sct.NewSCT([]io.Reader{s1, s2, s3}, callbacks); err != nil {
+	callbacks["setLimitsToZero"] = l.setLimitsToZero
+	if sct, err := sct.NewSCT([]io.Reader{s1, s2, s3, s4}, callbacks); err != nil {
 		return nil, err
 	} else {
 		l.sct = sct
@@ -68,7 +78,6 @@ func newLogic(config Config, energyCommunityConnector *energyCommunityConnector,
 
 func (l *logic) start(ctx context.Context) error {
 	eventChannel = make(chan string, 100)
-	//var ticker common.Ticker
 
 	l.sct.Start(ctx)
 
@@ -84,17 +93,15 @@ func (l *logic) start(ctx context.Context) error {
 					if !l.state.registeredAtDso {
 						l.dsoConnector.registerAtDso(ctx)
 					}
-					///ticker.Start(l.config.Periode, l.newRound)
+					l.timeoutTimer.Start(l.config.DsoNewRoundTriggerTimeout, l.timeout)
 				} else {
 					slog.Info("controller - lost leadership, stop logic")
 					l.state.leader = false
-					//ticker.Stop()
 				}
 			case event := <-eventChannel:
 				l.sct.AddEvent(event)
 			case <-ctx.Done():
 				slog.Debug("controller - shutdown leader channel observer")
-				//ticker.Stop()
 				return
 			}
 		}
@@ -103,9 +110,15 @@ func (l *logic) start(ctx context.Context) error {
 	return nil
 }
 
-/*func (l *logic) newRound() {
-	addEvent("newRound")
-}*/
+func (l *logic) setLimitsToZero() {
+	l.state.toplogy.setAllSensorLimits(0)
+}
+
+func (l *logic) timeout() {
+	slog.Warn("controller - dso timeout")
+	l.timeoutTimer.Reset(l.config.DsoNewRoundTriggerTimeout)
+	addEvent("timeout")
+}
 
 func (l *logic) calculateSetPointsWithoutLimits() {
 	l.state.toplogy.setAllSensorLimits(math.MaxFloat64)
@@ -113,6 +126,7 @@ func (l *logic) calculateSetPointsWithoutLimits() {
 }
 
 func (l *logic) calculateSetPointsWithLimits() {
+	l.timeoutTimer.Reset(l.config.DsoNewRoundTriggerTimeout)
 	l.state.toplogy.rootSensor.reset()
 	l.state.toplogy.rootSensor.setSetPoints()
 }
